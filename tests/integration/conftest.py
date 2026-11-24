@@ -26,6 +26,7 @@ def db_url(monkeypatch):
     monkeypatch.setenv("AIORG_SESSION_SECRET", "s" * 40)
     monkeypatch.setenv("AIORG_COOKIE_SECURE", "false")
     monkeypatch.setenv("AIORG_ROLES_DIR", "roles")
+    monkeypatch.setenv("AIORG_WORKER_ENABLED", "false")
     from app.db import session
 
     session.engine.cache_clear()

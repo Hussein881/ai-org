@@ -115,3 +115,173 @@ def test_recreated_account_does_not_revive_session(client):
         s.add(User(email="f@x.io", password_hash="x"))  # noqa: S106
         s.commit()
     assert client.get("/api/roles").status_code == 401
+
+
+def _csrf(client):
+    return {"X-CSRF-Token": login(client).json()["csrf_token"]}
+
+
+def test_tasks_require_auth_and_csrf(client):
+    assert client.get("/api/tasks").status_code == 401
+    assert client.get("/api/stream").status_code == 401
+    h = _csrf(client)
+    assert client.post("/api/tasks", json={"title": "x"}).status_code == 403
+    assert client.post("/api/tasks", json={"title": "x"}, headers=h).status_code == 201
+
+
+def test_task_validation(client):
+    h = _csrf(client)
+    assert client.post("/api/tasks", json={"title": ""}, headers=h).status_code == 422
+    r = client.post("/api/tasks", json={"title": "t", "assignee": "nobody"}, headers=h)
+    assert r.status_code == 422
+
+
+def test_invalid_transition_rejected_and_audited(client):
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "t"}, headers=h).json()["id"]
+    r = client.post(f"/api/tasks/{tid}/transition", json={"to": "completed"}, headers=h)
+    assert r.status_code == 409
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "ready"
+    assert (
+        client.post(f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h).status_code
+        == 200
+    )
+    assert (
+        client.post(f"/api/tasks/{tid}/transition", json={"to": "ready"}, headers=h).status_code
+        == 409
+    )
+    with Session(engine()) as s:
+        n = s.execute(text("select count(*) from audit_log where task_id=:t"), {"t": tid}).scalar()
+    assert n == 2
+
+
+def test_echo_worker_completes_task_and_drives_role_status(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "hello"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        assert task.status == "running"
+        assert client.get("/api/roles/ceo").json()["status"] == "working"
+        echo.finish(s, task, run)
+    d = client.get(f"/api/tasks/{tid}").json()
+    assert d["status"] == "completed" and d["check_record"]["passed"] is True
+    kinds = [e["kind"] for e in d["events"]]
+    assert kinds[0] == "task.created" and "run.output" in kinds and kinds[-1] == "role.status"
+    assert client.get("/api/roles/ceo").json()["status"] == "idle"
+    with Session(engine()) as s:
+        assert echo.claim_one(s) is None
+
+
+def test_restart_requeues_running_task(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "x"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        echo.claim_one(s)
+    with Session(engine()) as s:
+        assert echo.reconcile(s) == 1
+    d = client.get(f"/api/tasks/{tid}").json()
+    assert d["status"] == "ready"
+    assert client.get("/api/roles/ceo").json()["status"] == "idle"
+    with Session(engine()) as s:
+        run_status = s.execute(text("select status from runs")).scalar()
+    assert run_status == "abandoned"
+
+
+def test_stream_replays_missed_events(client):
+    h = _csrf(client)
+    client.post("/api/tasks", json={"title": "streamed"}, headers=h)
+    evs = client.get("/api/events?limit=5").json()
+    assert evs and evs[0]["seq"] < evs[-1]["seq"]
+    first = evs[0]["seq"]
+    with client.stream("GET", "/api/stream", headers={"Last-Event-ID": str(first - 1)}) as r:
+        assert r.headers["content-type"].startswith("text/event-stream")
+        body = ""
+        for chunk in r.iter_text():
+            body += chunk
+            if "task.created" in body:
+                break
+    assert f"id: {first}" in body and "task.created" in body
+
+
+def test_cancel_during_run_does_not_strand_role_or_run(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "c"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        assert (
+            client.post(
+                f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h
+            ).status_code
+            == 200
+        )
+        echo.finish(s, task, run)
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "cancelled"
+    assert client.get("/api/roles/ceo").json()["status"] == "idle"
+    with Session(engine()) as s:
+        assert s.execute(text("select status from runs")).scalar() == "abandoned"
+
+
+def test_restart_requeues_verifying_task(client):
+    from app.core import tasks as svc
+    from app.db.models import Task
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "v"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        task, _ = echo.claim_one(s)
+        svc.transition(s, task, "verifying", actor="t")
+    with Session(engine()) as s:
+        assert echo.reconcile(s) == 1
+        assert s.get(Task, tid).status == "ready"
+
+
+def test_dashboard_cannot_force_worker_states(client):
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "x"}, headers=h).json()["id"]
+    for to in ("running", "verifying", "completed"):
+        r = client.post(f"/api/tasks/{tid}/transition", json={"to": to}, headers=h)
+        assert r.status_code == 409
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "ready"
+
+
+def test_whitespace_title_rejected(client):
+    h = _csrf(client)
+    assert client.post("/api/tasks", json={"title": "   "}, headers=h).status_code == 422
+    r = client.post("/api/tasks", json={"title": "  padded  "}, headers=h)
+    assert r.json()["title"] == "padded"
+
+
+def test_reconcile_resets_stuck_working_role(client):
+    from app.core import tasks as svc
+    from app.workers import echo
+
+    with Session(engine()) as s:
+        svc.set_role_status(s, "ceo", "working")
+        s.commit()
+    with Session(engine()) as s:
+        echo.reconcile(s)
+    assert (
+        client.get("/api/roles/ceo").status_code == 401
+    )  # logged out client: just exercise DB path
+    with Session(engine()) as s:
+        assert s.execute(text("select status from roles where slug='ceo'")).scalar() == "idle"
+
+
+def test_reconcile_abandons_run_of_cancelled_task(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "c"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        echo.claim_one(s)
+    client.post(f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h)
+    with Session(engine()) as s:
+        echo.reconcile(s)
+        assert s.execute(text("select status from runs")).scalar() == "abandoned"

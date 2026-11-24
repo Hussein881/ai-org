@@ -7,7 +7,7 @@
 - Branch: main
 
 ## Last session
-- Ended with: S01 stack running (docker compose, api+postgres healthy); see docs/state/slices/S01.md
+- Ended with: S02 done, stack running (api+postgres healthy); see docs/state/slices/S02.md
 - Did: login, org chart, drawer, 21 pytest + 4 Playwright pass; Codex review FAIL x2 (cookie Secure over http = founder decision)
 - Remaining: founder runs `tailscale serve --bg --https=443 http://100.66.205.39:8000` (needs HTTPS certs enabled in Tailscale admin); not needed: founder accepted plain http over the tailnet (cookie Secure=false).
 

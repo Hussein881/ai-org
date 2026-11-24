@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     roles_dir: str = "roles"
     static_dir: str = "web/dist"
     session_max_age: int = 60 * 60 * 12
+    worker_enabled: bool = True
+    echo_seconds: float = 4.0
 
 
 def get_settings() -> Settings:

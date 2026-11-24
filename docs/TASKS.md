@@ -50,7 +50,7 @@ Skills: K1 K9 K10 K11 K12 K13 K14 K15 K16 K17 · review K2 K20 (find-bugs) · fi
 **What you'll see:** open `http://<lenovo-tailscale-name>:8000`, log in, see your company's org chart.
 **Then:** you run `sudo systemctl start build-runner`. From here the build is hands-free.
 
-### S02: Tasks, events and live status `[ ]`
+### S02: Tasks, events and live status `[x]` (review partial, see slice record)
 Tier T1 · Model `sonnet` · Review `codex` · Depends S01
 Read: ARCH §Data model §State machine §UI
 Skills: K9 K10 K11 K12 K13 K14 K15 K16 · review K2 K20 · finish K18  (IDs in SETUP §3)

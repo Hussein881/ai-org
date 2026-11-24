@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLive } from '@/features/live/LiveContext'
 import { api } from '@/lib/api'
 import { buildGraph, layout, type CardData } from './layout'
 import { FounderNode, RoleCardBody, RoleNode } from './RoleCard'
@@ -12,10 +13,22 @@ import { RoleDrawer } from './RoleDrawer'
 
 const nodeTypes = { role: RoleNode, founder: FounderNode }
 
+function Ticker({ events }: { events: ReturnType<typeof useLive>['ticker'] }) {
+  const recent = events.slice(-3).reverse()
+  return (
+    <div role="log" aria-label="Activity" aria-live="polite" className="flex h-10 items-center gap-4 overflow-hidden border-t px-4 text-xs text-muted-foreground max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:bg-background">
+      {recent.length === 0 ? <span>No activity yet. Assign a task to the CEO to see it here.</span> : recent.map((e) => (
+        <span key={e.seq} className="truncate">{e.kind} · {e.actor}</span>
+      ))}
+    </div>
+  )
+}
+
 export function OrgPage() {
   const roles = useQuery({ queryKey: ['roles'], queryFn: api.roles })
   const [selected, setSelected] = useState<string | null>(null)
   const [laidOut, setLaidOut] = useState<Node<CardData>[]>([])
+  const { ticker, pulses } = useLive()
   const graph = useMemo(() => buildGraph(roles.data ?? []), [roles.data])
   useEffect(() => {
     if (!roles.data?.length) return
@@ -29,6 +42,11 @@ export function OrgPage() {
   const nodes = useMemo(
     () => laidOut.map((n) => (n.type === 'role' ? { ...n, data: { ...n.data, onOpen: setSelected } } : n)),
     [laidOut],
+  )
+
+  const edges = useMemo(
+    () => graph.edges.map((e) => ({ ...e, animated: pulses.some((p) => p.edge === e.id && p.until > Date.now()) })),
+    [graph.edges, pulses],
   )
 
   if (roles.isPending) return <Skeleton className="m-4 h-64" />
@@ -51,7 +69,7 @@ export function OrgPage() {
   return (
     <>
       {/* Phone and screen-reader friendly list of the same data. */}
-      <ul aria-label="Roles" className="space-y-2 overflow-y-auto p-4 md:hidden">
+      <ul aria-label="Roles" className="space-y-2 overflow-y-auto p-4 pb-14 md:hidden">
         {roles.data.map((r) => (
           <li key={r.slug}>
             <button
@@ -65,10 +83,10 @@ export function OrgPage() {
           </li>
         ))}
       </ul>
-      <div className="hidden h-full md:block" data-testid="org-chart">
+      <div className="hidden h-[calc(100%-2.5rem)] md:block" data-testid="org-chart">
         <ReactFlow
           nodes={nodes}
-          edges={graph.edges}
+          edges={edges}
           nodeTypes={nodeTypes}
           fitView
           nodesDraggable={false}
@@ -80,6 +98,7 @@ export function OrgPage() {
           <MiniMap pannable zoomable ariaLabel="Organization minimap" />
         </ReactFlow>
       </div>
+      <Ticker events={ticker} />
       <RoleDrawer slug={selected} onClose={() => setSelected(null)} />
     </>
   )

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db.models import Event, User
-from app.db.session import get_db
+from app.db.session import engine, get_db
 
 COOKIE = "aiorg_session"
 _hasher = PasswordHasher()
@@ -42,7 +42,7 @@ def _serializer(settings: Settings) -> URLSafeTimedSerializer:
 def current_session(
     request: Request,
     settings: Settings = Depends(get_settings),
-    db: Session = Depends(get_db),
+    # no request-scoped session: SSE streams must not pin a DB connection for their lifetime
 ) -> dict[str, str]:
     raw = request.cookies.get(COOKIE)
     if not raw:
@@ -56,7 +56,9 @@ def current_session(
         if not hmac.compare_digest(sent, data["csrf"]):
             raise HTTPException(403, "CSRF token missing or invalid")
     # The account must still exist: removing/replacing the founder ends old sessions.
-    if db.scalar(select(User.id).where(User.id == data.get("uid"))) is None:
+    with Session(engine()) as db:
+        exists = db.scalar(select(User.id).where(User.id == data.get("uid"))) is not None
+    if not exists:
         raise HTTPException(401, "Not authenticated")
     return {"email": data["email"], "csrf": data["csrf"]}
 

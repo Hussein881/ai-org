@@ -2,6 +2,9 @@ import type { components } from '@/lib/api-types'
 
 export type Role = components['schemas']['RoleOut']
 export type RoleDetail = components['schemas']['RoleDetail']
+export type Task = components['schemas']['TaskOut']
+export type TaskDetail = components['schemas']['TaskDetail']
+export type OrgEvent = components['schemas']['EventOut']
 export type Session = components['schemas']['SessionOut']
 
 export class ApiError extends Error {
@@ -44,5 +47,12 @@ export const api = {
     }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   roles: () => request<Role[]>('/api/roles'),
+  tasks: () => request<Task[]>('/api/tasks'),
+  task: (id: string) => request<TaskDetail>(`/api/tasks/${encodeURIComponent(id)}`),
+  createTask: (title: string, description: string) =>
+    request<Task>('/api/tasks', { method: 'POST', body: JSON.stringify({ title, description, assignee: 'ceo' }) }),
+  transition: (id: string, to: string) =>
+    request<Task>(`/api/tasks/${encodeURIComponent(id)}/transition`, { method: 'POST', body: JSON.stringify({ to }) }),
+  events: () => request<OrgEvent[]>('/api/events?limit=30'),
   role: (slug: string) => request<RoleDetail>(`/api/roles/${encodeURIComponent(slug)}`),
 }
