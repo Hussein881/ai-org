@@ -272,3 +272,16 @@ def test_reconcile_resets_stuck_working_role(client):
     )  # logged out client: just exercise DB path
     with Session(engine()) as s:
         assert s.execute(text("select status from roles where slug='ceo'")).scalar() == "idle"
+
+
+def test_reconcile_abandons_run_of_cancelled_task(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "c"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        echo.claim_one(s)
+    client.post(f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h)
+    with Session(engine()) as s:
+        echo.reconcile(s)
+        assert s.execute(text("select status from runs")).scalar() == "abandoned"

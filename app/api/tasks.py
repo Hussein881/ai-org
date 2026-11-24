@@ -112,6 +112,7 @@ def transition_task(
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(404, "Task not found")
+    db.refresh(task, with_for_update=True)  # decide on the locked, current status
     if body.to not in FOUNDER_TARGETS or (
         body.to == "ready" and task.status in ("running", "verifying")
     ):

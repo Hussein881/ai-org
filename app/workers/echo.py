@@ -84,6 +84,9 @@ def reconcile(db: Session) -> int:
         tasks.emit(db, "run.abandoned", ACTOR, task_id=task.id, payload={"reason": "restart"})
         tasks.set_role_status(db, task.assignee, "idle", task.id)
         tasks.transition(db, task, "ready", actor=ACTOR)
+    # No worker survives a restart, so no run may stay `running` (e.g. a cancelled task's run).
+    for run in db.scalars(select(Run).where(Run.status == "running")):
+        run.status = "abandoned"
     # A crash between completion and the idle reset can leave a role stuck on Working.
     busy = {t.assignee for t in db.scalars(select(Task).where(Task.status == "running"))}
     for role in db.scalars(select(Role).where(Role.status == "working")):
