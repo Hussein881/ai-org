@@ -15,7 +15,10 @@ export function useLiveEvents() {
 
   useEffect(() => {
     const es = new EventSource('/api/stream')
-    es.onopen = () => setConn('live')
+    es.onopen = () => {
+      setConn('live')
+      void qc.invalidateQueries() // anything may have changed before the stream started or while it was down
+    }
     es.onerror = () => setConn('reconnecting') // EventSource retries by itself, sending Last-Event-ID
     es.addEventListener('aiorg', (m) => {
       const e = JSON.parse((m as MessageEvent<string>).data) as OrgEvent

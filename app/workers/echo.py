@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.core import tasks
 from app.core.state import InvalidTransitionError
-from app.db.models import Run, Task
+from app.db.models import Role, Run, Task
 from app.db.session import engine
 
 log = logging.getLogger("aiorg.echo")
@@ -60,7 +60,13 @@ def finish(db: Session, task: Task, run: Run) -> None:
         tasks.transition(db, task, "verifying", actor=ACTOR)
         check = {"kind": "deterministic", "check": "echo matches title", "passed": task.title != ""}
         run.status, run.result = "succeeded", {"echo": task.title}
-        tasks.transition(db, task, "completed", actor=ACTOR, check_record=check)
+        tasks.transition(
+            db,
+            task,
+            "completed" if check["passed"] else "failed_qa",
+            actor=ACTOR,
+            check_record=check,
+        )
     except InvalidTransitionError:
         _abandon(db, task, run, "task changed while running")
         return
@@ -78,6 +84,12 @@ def reconcile(db: Session) -> int:
         tasks.emit(db, "run.abandoned", ACTOR, task_id=task.id, payload={"reason": "restart"})
         tasks.set_role_status(db, task.assignee, "idle", task.id)
         tasks.transition(db, task, "ready", actor=ACTOR)
+    # A crash between completion and the idle reset can leave a role stuck on Working.
+    busy = {t.assignee for t in db.scalars(select(Task).where(Task.status == "running"))}
+    for role in db.scalars(select(Role).where(Role.status == "working")):
+        if role.slug not in busy:
+            tasks.set_role_status(db, role.slug, "idle")
+    db.commit()
     return len(stuck)
 
 

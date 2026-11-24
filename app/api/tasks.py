@@ -3,11 +3,11 @@ import json
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api", tags=["tasks"], dependencies=[Depends(current_
 
 
 class TaskIn(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     description: str = Field(default="", max_length=5000)
     assignee: str = "ceo"
 
@@ -51,6 +51,9 @@ class TaskDetail(TaskOut):
     events: list[EventOut]
 
 
+FOUNDER_TARGETS = {"cancelled", "ready"}  # running/verifying/completed belong to workers
+
+
 class TransitionIn(BaseModel):
     to: str
 
@@ -70,7 +73,7 @@ def create_task(
     try:
         task = tasks.create_task(
             db,
-            title=body.title.strip(),
+            title=body.title,
             description=body.description,
             assignee=body.assignee,
             actor=session["email"],
@@ -109,6 +112,10 @@ def transition_task(
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(404, "Task not found")
+    if body.to not in FOUNDER_TARGETS or (
+        body.to == "ready" and task.status in ("running", "verifying")
+    ):
+        raise HTTPException(409, f"a task cannot be moved to {body.to} from the dashboard")
     try:
         tasks.transition(db, task, body.to, actor=session["email"])
     except state.InvalidTransitionError as e:
@@ -123,9 +130,14 @@ def recent_events(limit: int = 30, db: Session = Depends(get_db)) -> list[EventO
     return [_event_out(e) for e in reversed(rows.all())]
 
 
+REREAD_WINDOW = 200  # sequence numbers can commit out of order; re-read recent ones and dedupe
+
+
 def _fetch_after(seq: int) -> list[EventOut]:
     with Session(engine()) as db:
-        rows = db.scalars(select(Event).where(Event.seq > seq).order_by(Event.seq).limit(200))
+        rows = db.scalars(
+            select(Event).where(Event.seq > seq - REREAD_WINDOW).order_by(Event.seq).limit(400)
+        )
         return [_event_out(e) for e in rows]
 
 
@@ -143,15 +155,19 @@ async def stream(request: Request) -> StreamingResponse:
 
     async def gen() -> AsyncIterator[str]:
         last = start
+        seen: set[int] = set()
         deadline = time.monotonic() + STREAM_MAX_SECONDS  # forces periodic re-authentication
         yield f"retry: 2000\nid: {start}\n\n"  # so a reconnect always resumes from here
         while time.monotonic() < deadline and not await request.is_disconnected():
             events = await asyncio.to_thread(_fetch_after, last)
-            for e in events:
-                last = e.seq
+            fresh = [e for e in events if e.seq > start and e.seq not in seen]
+            for e in fresh:
+                seen.add(e.seq)
+                last = max(last, e.seq)
                 data = json.dumps(e.model_dump(mode="json"))
                 yield f"id: {e.seq}\nevent: aiorg\ndata: {data}\n\n"
-            if not events:
+            seen = {x for x in seen if x > last - REREAD_WINDOW}
+            if not fresh:
                 yield ": keepalive\n\n"
             await asyncio.sleep(0.7)
 

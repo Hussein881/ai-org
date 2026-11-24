@@ -240,3 +240,35 @@ def test_restart_requeues_verifying_task(client):
     with Session(engine()) as s:
         assert echo.reconcile(s) == 1
         assert s.get(Task, tid).status == "ready"
+
+
+def test_dashboard_cannot_force_worker_states(client):
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "x"}, headers=h).json()["id"]
+    for to in ("running", "verifying", "completed"):
+        r = client.post(f"/api/tasks/{tid}/transition", json={"to": to}, headers=h)
+        assert r.status_code == 409
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "ready"
+
+
+def test_whitespace_title_rejected(client):
+    h = _csrf(client)
+    assert client.post("/api/tasks", json={"title": "   "}, headers=h).status_code == 422
+    r = client.post("/api/tasks", json={"title": "  padded  "}, headers=h)
+    assert r.json()["title"] == "padded"
+
+
+def test_reconcile_resets_stuck_working_role(client):
+    from app.core import tasks as svc
+    from app.workers import echo
+
+    with Session(engine()) as s:
+        svc.set_role_status(s, "ceo", "working")
+        s.commit()
+    with Session(engine()) as s:
+        echo.reconcile(s)
+    assert (
+        client.get("/api/roles/ceo").status_code == 401
+    )  # logged out client: just exercise DB path
+    with Session(engine()) as s:
+        assert s.execute(text("select status from roles where slug='ceo'")).scalar() == "idle"
