@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Org build runner
+After=network-online.target user@1001.service
+Wants=network-online.target
+
+[Service]
+User=aiorg
+EnvironmentFile=/srv/aiorg/secrets/notify.env
+Environment=PATH=/home/aiorg/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_RUNTIME_DIR=/run/user/1001 DOCKER_HOST=unix:///run/user/1001/docker.sock
+ExecStart=/usr/local/lib/aiorg/build-runner.sh
+Restart=on-failure
+RestartPreventExitStatus=1 2
+StandardOutput=append:/srv/aiorg/artifacts/logs/build-runner.log
+StandardError=append:/srv/aiorg/artifacts/logs/build-runner.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+# Pinned skill provenance (S00, 2026-11-24). Project scope: .claude/skills/<name>/ (copied, not linked).
+# Third-party skills were read (SKILL.md + scripts) and pattern-scanned by S00; Sentry skill-scanner
+# was approved after install (G1 K20, 2026-11-24); skill-scanner then ran on all third-party skills (results in preflight.md).
+# Earlier grep pass remains as a first check.
+plugins:  # claude plugin install <name>@claude-plugins-official --scope project (2026-11-24)
+  K1: frontend-design
+  K2: code-review
+  K3: pr-review-toolkit
+  K4: feature-dev
+  K5: claude-md-management
+  K6: context7        # runs code (MCP), G1 YES-ALL
+  K7: security-guidance  # runs code (hooks), G1 YES-ALL
+  K8: pyright-lsp     # runs code (binary), G1 YES-ALL
+skills:
+  - {id: K9, name: react-best-practices, repo: vercel-labs/agent-skills, commit: 5a37a6329fbad3666c3207392a6a7c0110e92efb, installed: 2026-11-24, note: "markdown only"}
+  - {id: K10, name: web-design-guidelines, repo: vercel-labs/agent-skills, commit: 5a37a6329fbad3666c3207392a6a7c0110e92efb, installed: 2026-11-24, note: "markdown only; SKILL.md tells the agent to curl a guidelines file from raw.githubusercontent.com at use time (remote instructions: treat as untrusted)"}
+  - {id: K11, name: shadcn, repo: shadcn-ui/ui, commit: 055aa6b7837b1808456a24beb4c97a677864aa82, installed: 2026-11-24, note: "LOCAL PATCH 2026-11-24: SKILL.md line 17 (load-time npx shadcn@latest) replaced with a text note; otherwise upstream. One local .mjs showcase script"}
+  - {id: K12, name: vitest, repo: antfu/skills, commit: 4a6bb39e7b45e26402eb215393c51ccf5df1ca4c, installed: 2026-11-24, note: "markdown only"}
+  - {id: K14, name: webapp-testing, repo: anthropics/skills, commit: e4bb5d960d87126ff3b3a8af1a104b7db67560ba, installed: 2026-11-24, note: "runs code (python helpers), G1 YES-ALL"}
+  - {id: K15, name: supabase-postgres-best-practices, repo: supabase/agent-skills, commit: c9be0e931b7930f7d02126d04774d904c381e7d7, installed: 2026-11-24, note: "markdown only"}
+  - {id: K16, name: async-python-patterns, repo: wshobson/agents, commit: 34e50fee32114afd9475f25d81492712f08cb71c, installed: 2026-11-24, note: "markdown only"}
+  - {id: K16, name: python-testing-patterns, repo: wshobson/agents, commit: 34e50fee32114afd9475f25d81492712f08cb71c, installed: 2026-11-24, note: "markdown only"}
+  - {id: K18, name: systematic-debugging, repo: obra/superpowers, commit: 22f0b463e7a5e579904dd6211a520321035526f7, installed: 2026-11-24, note: "folder copy only (no plugin/hooks); includes find-polluter.sh, local bisect, run on demand"}
+  - {id: K18, name: verification-before-completion, repo: obra/superpowers, commit: 22f0b463e7a5e579904dd6211a520321035526f7, installed: 2026-11-24, note: "folder copy only"}
+  - {id: K18, name: test-driven-development, repo: obra/superpowers, commit: 22f0b463e7a5e579904dd6211a520321035526f7, installed: 2026-11-24, note: "folder copy only"}
+  - {id: K19, name: differential-review, repo: trailofbits/skills, commit: 149d7b21f4067765b82e67029730b42d228ef4b4, installed: 2026-11-24, note: "markdown + svg/yaml only"}
+  - {id: K21, name: internal-comms, repo: anthropics/skills, commit: e4bb5d960d87126ff3b3a8af1a104b7db67560ba, installed: 2026-11-24, note: "markdown only"}
+  - {id: K22, name: skill-creator, repo: anthropics/skills, commit: e4bb5d960d87126ff3b3a8af1a104b7db67560ba, installed: 2026-11-24, note: "runs code (eval scripts), G1 YES-ALL"}
+  - {id: K13, name: review-animations, repo: emilkowalski/skills, commit: 64eb3deb9a5fbfa041faf783e0bc3fd635872e9c, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K13, name: animation-performance, repo: emilkowalski/skills, commit: 64eb3deb9a5fbfa041faf783e0bc3fd635872e9c, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K17, name: docker-build-strategies, repo: docker/skills, commit: 5653ef866fc4475f66bb8097043ee4dd19956e76, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K17, name: docker-compose-patterns, repo: docker/skills, commit: 5653ef866fc4475f66bb8097043ee4dd19956e76, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K17, name: docker-destructive-guardrails, repo: docker/skills, commit: 5653ef866fc4475f66bb8097043ee4dd19956e76, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K20, name: skill-scanner, repo: getsentry/skills, commit: a582c51ee29d0f35e6ac321340796f77d43da733, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K20, name: find-bugs, repo: getsentry/skills, commit: a582c51ee29d0f35e6ac321340796f77d43da733, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}
+  - {id: K19b, name: supply-chain-risk-auditor, repo: trailofbits/skills, commit: 149d7b21f4067765b82e67029730b42d228ef4b4, installed: 2026-11-24, note: "founder approved G1 2026-11-24 after S00 scan"}

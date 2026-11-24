@@ -12,7 +12,7 @@ The "Runs code" items in SETUP §3: **context7** (MCP server; public library que
 - For the three "check in S00" items, S00 reports what they run; they need a second yes here (`YES: K13 K17 K20`) after you've read that.
 - Founder rule (2026-11-24): until K20 is approved, T1 slices review with Codex + `/code-review` + the `reviewer` subagent and record the review as **partial** instead of blocking.
 
-Answer: YES-ALL (founder, 2026-11-24). K13, K17, K20: <pending: founder decides after reading S00's scan report>
+Answer: YES-ALL (founder, 2026-11-24). K13, K17, K20, K19b: YES: K13 K17 K20 K19b (founder, 2026-11-24, after reading S00's scan)
 
 ### G2. Docker mode (needed by S01, only if rootless failed)
 Bootstrap tries rootless Docker (T-007, preferred). If it failed, `docs/state/bootstrap.md` says why. Options: `FIX-ROOTLESS` (you run the fix it lists) · `ACCEPT-DOCKER-GROUP` (adds `aiorg` to the docker group, which is root-equivalent; recorded as an accepted risk in DECISIONS T-007).
@@ -24,7 +24,7 @@ Answer: N/A (rootless Docker PASS in bootstrap, 2026-11-24)
 ### G3. Quota and budget envelopes (needed by S03)
 SETUP §5: accept or change the defaults in MODEL_POLICY Part B. Options: `ACCEPT-DEFAULTS` · `CHANGE: <what>`.
 
-Answer: <unanswered>
+Answer: ACCEPT-DEFAULTS (founder, 2026-11-24)
 
 ### G4. Constitution filled (needed by S05); career targets only when backlog P2 is added
 `constitution/founder.md` (S05) is final. `config/career.yaml` is needed only when you add the Career project (Project backlog P2, D-038). Claude can interview you to draft them (bootstrap step B9). Options: `FINAL` · `CONSTITUTION-ONLY` (S05 can run, S06 waits).
