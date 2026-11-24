@@ -2,14 +2,14 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S01 (not started; run by hand, runner stays stopped). S00 merged by founder override
+- Active slice: S01 (built, review FAIL x2, awaiting founder cookie decision; branch slice/S01-walking-skeleton, NOT merged). Runner stays stopped
 - Phase: A
-- Branch: main (S00 merged)
+- Branch: slice/S01-walking-skeleton
 
 ## Last session
-- Ended with: S00 merged to main by founder override, review FAIL x4 (docs/state/slices/S00.md)
-- Did: G3 recorded; scaffold, runner (tested), keycheck + 3 units written (not installed), K1-K12/K14-K16/K18/K19(diff-review)/K21/K22 installed; settings allowlist NOT extended (blocked)
-- Remaining in this slice (if CONTINUE): n/a
+- Ended with: S01 stack running (docker compose, api+postgres healthy); see docs/state/slices/S01.md
+- Did: login, org chart, drawer, 21 pytest + 4 Playwright pass; Codex review FAIL x2 (cookie Secure over http = founder decision)
+- Remaining: founder cookie decision, /code-review + find-bugs, Codex round 3, merge. e2e needs LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu
 
 ## Facts the next session needs (not derivable from code in 1 minute)
 - Root setup is done by `scripts/bootstrap/root-setup.sh` (founder runs it with sudo). Claude never uses sudo.

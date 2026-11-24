@@ -1,0 +1,63 @@
+/* Theme tokens. Direction: a quiet instrument panel. Cool ink-blue neutrals, one deep teal
+   accent; status colours carry meaning and are never decoration. */
+:root {
+  --background: oklch(0.975 0.006 240);
+  --foreground: oklch(0.22 0.03 245);
+  --card: oklch(1 0.002 240);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.44 0.08 200);
+  --primary-foreground: oklch(0.98 0.005 200);
+  --secondary: oklch(0.945 0.01 240);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.945 0.01 240);
+  --muted-foreground: oklch(0.45 0.025 245);
+  --accent: oklch(0.93 0.02 215);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.5 0.2 27);
+  --border: oklch(0.88 0.012 240);
+  --input: oklch(0.88 0.012 240);
+  --ring: oklch(0.55 0.1 200);
+  --radius: 0.625rem;
+  --status-idle: oklch(0.62 0.02 245);
+  --status-working: oklch(0.55 0.17 255);
+  --status-waiting: oklch(0.68 0.15 75);
+  --status-blocked: oklch(0.55 0.2 27);
+  --status-founder: oklch(0.5 0.18 305);
+}
+.dark {
+  --background: oklch(0.16 0.015 245);
+  --foreground: oklch(0.94 0.008 240);
+  --card: oklch(0.2 0.018 245);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.22 0.02 245);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.75 0.1 195);
+  --primary-foreground: oklch(0.18 0.03 220);
+  --secondary: oklch(0.26 0.02 245);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.26 0.02 245);
+  --muted-foreground: oklch(0.72 0.02 240);
+  --accent: oklch(0.3 0.03 225);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.7 0.19 25);
+  --border: oklch(0.32 0.02 245);
+  --input: oklch(0.34 0.02 245);
+  --ring: oklch(0.7 0.1 195);
+  --status-idle: oklch(0.65 0.02 245);
+  --status-working: oklch(0.7 0.14 250);
+  --status-waiting: oklch(0.8 0.14 80);
+  --status-blocked: oklch(0.7 0.19 25);
+  --status-founder: oklch(0.72 0.15 305);
+}
+@theme inline {
+  --color-status-idle: var(--status-idle);
+  --color-status-working: var(--status-working);
+  --color-status-waiting: var(--status-waiting);
+  --color-status-blocked: var(--status-blocked);
+  --color-status-founder: var(--status-founder);
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

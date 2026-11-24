@@ -1,0 +1,10 @@
+id: coding-workers
+name: Coding Workers
+department: engineering
+reports_to: engineering-director
+model: "Sonnet 5.5"
+provider: claude_cli
+summary: "Temporary workers spun up per task and discarded afterwards."
+responsibilities:
+  - Implement one task in an isolated worktree
+  - Ask the director when information is insufficient

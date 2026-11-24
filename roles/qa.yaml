@@ -1,0 +1,10 @@
+id: qa
+name: QA
+department: assurance
+reports_to: founder
+model: "Codex (read-only)"
+provider: codex_cli
+summary: "Independent verification of outcomes; may escalate directly to the founder with evidence."
+responsibilities:
+  - Verify outcomes independently of the producer
+  - Escalate standards violations to the founder with evidence
