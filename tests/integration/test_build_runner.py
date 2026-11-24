@@ -63,10 +63,12 @@ def tasks(marker: str = " ") -> str:
     return SLICE.replace("### S99: Dummy", f"### S99: Dummy `[{marker}]`")
 
 
-def test_dry_run_marks_done(tmp_path: Path) -> None:
+def test_dry_run_moves_and_restores(tmp_path: Path) -> None:
     e = Env(tmp_path, tasks())
-    assert e.run(DRY_RUN="1").returncode == 0
-    assert "Dummy `[x]`" in e.tasks.read_text()
+    r = e.run(DRY_RUN="1")
+    assert r.returncode == 0 and "DRY_RUN ok S99" in r.stdout
+    assert "Dummy `[ ]`" in e.tasks.read_text() and not (e.records / "S99.md").exists()
+    assert "[ ]→[~]→[x]" in (tmp_path / "r.log").read_text()
 
 
 def test_launch_args_and_scrubbed_env(tmp_path: Path) -> None:
@@ -117,3 +119,34 @@ def test_error_retries_once_then_blocks(tmp_path: Path) -> None:
     e.run()
     assert (tmp_path / "argv").read_text().count("\n") == 2
     assert "Dummy `[!]`" in e.tasks.read_text()
+
+
+def test_usage_limit_is_not_a_failure(tmp_path: Path) -> None:
+    e = Env(tmp_path, tasks())
+    body = (
+        f"n=$(cat {tmp_path}/n 2>/dev/null || echo 0); echo $((n+1)) > {tmp_path}/n\n"
+        'if [ "$n" = 0 ]; then echo \'{"result":"Claude usage limit reached"}\'; exit 1; fi\n'
+        'if [ "$1" = "-p" ] && [ "$2" = "ok" ]; then echo ok; exit 0; fi\n'
+    )
+    e.fake.write_text(e.fake.read_text() + body + done_body(tmp_path, "S99"))
+    e.run()
+    assert "Dummy `[x]`" in e.tasks.read_text()
+    assert "retrying once" not in (tmp_path / "r.log").read_text()
+
+
+def test_env_check_must_print_env_clean(tmp_path: Path) -> None:
+    e = Env(tmp_path, tasks())
+    chk = tmp_path / "chk.sh"
+    chk.write_text("#!/bin/bash\nexit 0\n")
+    r = e.run(ENV_CHECK=str(chk))
+    assert r.returncode == 1 and not e.marker.exists()
+    assert "Dummy `[!]`" in e.tasks.read_text()
+
+
+def test_phase_milestone_notified_once_phase_complete(tmp_path: Path) -> None:
+    md = "## Phase A: See it\n### S98: One `[x]`\nModel `haiku`\n"
+    md += "### S99: Two `[ ]`\nModel `haiku` · Depends S98\n"
+    e = Env(tmp_path, md)
+    e.fake.write_text(e.fake.read_text() + done_body(tmp_path, "S99"))
+    e.run()
+    assert "Milestone: Phase A: See it complete" in (tmp_path / "r.log").read_text()

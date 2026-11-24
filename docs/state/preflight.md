@@ -34,7 +34,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 | `scripts/build-runner.sh` | PASS: rewritten to the TASKS.md "Build runner" spec after review round 2 (model/effort from header, `env -i` launch, `[~]` resumes first, dependency gating, continuations, rate-limit probe, one retry, SLICE_DONE verified against marker + record, Notion posts). 7 tests incl. dry run |
 | Planted fake key variable | PASS: runner refuses, never launches claude, marks slice `[!]`, key value not echoed (`tests/integration/test_build_runner.py`) |
 | `scripts/ops/keycheck.sh`, 3 units, `install-units.sh` | WRITTEN; units pass `systemd-analyze verify`; **not installed** (needs founder sudo) |
-| Full `.claude/settings.json` allowlist | PASS: founder copied the proposed allowlist over `.claude/settings.json` (103 allow / 28 deny, 2026-11-24); my own edit had been refused: my edit to the permission file was refused by the auto-mode classifier, so I did not retry another way. Allowlist is still the bootstrap one (plus `enabledPlugins` added by the installs). Needs your decision, see below |
+| Full `.claude/settings.json` allowlist | PASS: founder copied the proposed allowlist over `.claude/settings.json` (103 allow / 28 deny, 2026-11-24). My own edit had been refused by the classifier, so the founder applied it |
 
 ## Plugins and skills (G1 YES-ALL; see `skills/registry.yaml` for pinned commits)
 - Installed, project scope: K1 K2 K3 K4 K5 K6 K7 K8 (official marketplace, all `enabled`).
@@ -50,7 +50,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 
 ## What you need to do
 1. Install units (one sudo, read the script first): `sudo bash /home/aiorg/ai-org/scripts/ops/install-units.sh`, then `sudo -n systemctl start aiorg-keycheck.service` can be run by Claude to fill the UNKNOWN provider rows.
-2. Decide on `.claude/settings.json`: either add the allowlist yourself, or tell me to proceed with a specific list (I will not self-expand permissions without that).
+2. ~~Decide on `.claude/settings.json`~~ done 2026-11-24 (founder applied it).
 3. G1 second yes (above). 4. Repo URL (bootstrap B7). 5. Confirm the terms re-check is wanted.
 
 ## Gate
