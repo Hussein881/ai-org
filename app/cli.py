@@ -2,6 +2,7 @@
 
 import getpass
 import sys
+from pathlib import Path
 
 from argon2 import PasswordHasher
 from sqlalchemy import delete, select
@@ -33,7 +34,21 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "hash-password":
         print(PasswordHasher().hash(getpass.getpass("Founder password: ")))
+    elif cmd == "set-password":
+        # Run in a real terminal (SSH). Writes the hash into .env; then `docker compose up -d`.
+        pw = getpass.getpass("New founder password: ")
+        if len(pw) < 12 or pw != getpass.getpass("Repeat: "):
+            sys.exit("Passwords differ or are shorter than 12 characters; nothing changed.")
+        env = Path(".env")
+        lines = [
+            x
+            for x in env.read_text().splitlines()
+            if not x.startswith("AIORG_FOUNDER_PASSWORD_HASH=")
+        ]
+        lines.append(f"AIORG_FOUNDER_PASSWORD_HASH='{PasswordHasher().hash(pw)}'")
+        env.write_text("\n".join(lines) + "\n")
+        print("Saved to .env. Now run: docker compose up -d")
     elif cmd == "ensure-founder":
         ensure_founder()
     else:
-        sys.exit("usage: python -m app.cli hash-password|ensure-founder")
+        sys.exit("usage: python -m app.cli hash-password|set-password|ensure-founder")
