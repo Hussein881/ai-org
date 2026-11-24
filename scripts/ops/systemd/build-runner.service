@@ -9,6 +9,7 @@ EnvironmentFile=/srv/aiorg/secrets/notify.env
 Environment=XDG_RUNTIME_DIR=/run/user/1001 DOCKER_HOST=unix:///run/user/1001/docker.sock
 ExecStart=/usr/local/lib/aiorg/build-runner.sh
 Restart=on-failure
+RestartPreventExitStatus=1 2
 StandardOutput=append:/srv/aiorg/artifacts/logs/build-runner.log
 StandardError=append:/srv/aiorg/artifacts/logs/build-runner.log
 

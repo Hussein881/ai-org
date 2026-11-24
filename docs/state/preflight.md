@@ -10,9 +10,9 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 | Env clean | PASS | `ENV_CLEAN` |
 | Sudoers rule | PASS | `sudo -n -l` lists only the D-036 systemctl start/stop/restart lines, keycheck start, reboot |
 | Secret files | PASS | per bootstrap B6 (root 700/600; only names read) |
-| Ports | NOTE | Nothing on 80/443/5432/8000. Localhost-only listeners exist on 8080, 8088, 55432 and a few high ports (not ours; check before S01 binds anything). SSH 22 is open on all interfaces. |
-| Backup path | PENDING | gate G7 (S13) |
-| Git remote | NEEDS ANWAR | no origin yet (bootstrap B7) |
+| Ports | PASS (note) | Nothing on 80/443/5432/8000. Localhost-only listeners exist on 8080, 8088, 55432 and a few high ports (not ours; check before S01 binds anything). SSH 22 is open on all interfaces. |
+| Backup path | UNKNOWN | gate G7 (S13) |
+| Git remote | FAIL | no origin yet (bootstrap B7) |
 
 ## Providers (PROVIDERS.md §What S00 must verify)
 | # | Item | Result | Evidence |
@@ -22,7 +22,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 | 2 | Codex | PASS | logged in via ChatGPT; `codex exec --sandbox read-only` works; default model gpt-6.2-sol |
 | 3 | Gemini key + free-tier limits | UNKNOWN | key SET; live check waits for `aiorg-keycheck.service`; limits are shown only in AI Studio |
 | 4 | OpenRouter key + `/api/v1/key` limits | UNKNOWN | key SET; same |
-| 5 | Paid fallback key and cap | PARTIAL | ANTHROPIC_API_KEY SET; $30/month cap is set in the Console (D-027), not verifiable from here; live check UNKNOWN |
+| 5 | Paid fallback key and cap | UNKNOWN | ANTHROPIC_API_KEY SET; $30/month cap is set in the Console (D-027), not verifiable from here; live check UNKNOWN |
 | 6 | Anthropic/OpenAI terms re-check | **FOUNDER DECISION** | Fetched 2026-11-24 (all 5 pages loaded). No baseline to diff, so I can't say if terms tightened. Anthropic Consumer Terms (eff. 2025-10-08) §3 bar "access to the Services through automated or non-human means, whether through a bot, script, or otherwise" except via API key or where Anthropic explicitly permits; Usage Policy (eff. 2026-11-12) bars routing requests "through consumer subscriptions" for resale/proxy. Neither names `claude -p` or Claude Code. OpenAI Terms of Use bar programmatically extracting Output and circumventing rate limits; nothing names `codex exec`. Reading of text only, not a ruling. Per PROVIDERS item 6 I am marking the Claude CLI-subscription runtime route (D-026) **BLOCKED pending founder**; free tiers + fake providers continue. Founder: confirm Claude Code headless use under your plan is permitted (Anthropic docs/support), or move that route to the $30 API cap |
 | - | Notion token | UNKNOWN | SET; keycheck covers it |
 
@@ -39,7 +39,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 ## Plugins and skills (G1 YES-ALL; see `skills/registry.yaml` for pinned commits)
 - Installed, project scope: K1 K2 K3 K4 K5 K6 K7 K8 (official marketplace, all `enabled`).
 - Copied to `.claude/skills/`: K9 K10 K11 K12 K14 K15 K16(2) K18(3) K19 differential-review, K21, K22. Each third-party one was read for scripts and grepped for network/exec/destructive patterns; nothing hostile found.
-- Sentry skill-scanner is not approved yet (K20), so the "scan" was my own grep, not skill-scanner. Recorded as such.
+- Sentry skill-scanner ran after K20 approval on every third-party skill: 16 clean; flagged: **shadcn** (3 high: a `!`command`` that runs `npx shadcn@latest info` when the skill loads, i.e. code runs and fetches from npm at load time; plus two PNGs with ordinary Adobe XMP metadata, benign); **supply-chain-risk-auditor** (4 high: bundled `test_*.py` would be run by pytest if pointed at the skill dir; our `testpaths=["tests"]` avoids it); react-best-practices (name/dir mismatch only); skill-scanner itself (pattern lists, expected). **Founder: shadcn's load-time `npx` is the one to accept or remove.**
 - Flags: K10 `web-design-guidelines` tells the agent to curl a guidelines file at use time (remote instructions, treat as untrusted). K18 `systematic-debugging` includes a local bisect shell script run on demand.
 - **Held back, need your answer:**
   - K19b `supply-chain-risk-auditor` (Trail of Bits): ships Python scripts that call osv.dev, npm and PyPI public APIs. SETUP lists K19 as "no code", G1 doesn't cover it. Say `YES: K19b` to install.

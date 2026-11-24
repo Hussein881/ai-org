@@ -1,6 +1,7 @@
 # Pinned skill provenance (S00, 2026-11-24). Project scope: .claude/skills/<name>/ (copied, not linked).
 # Third-party skills were read (SKILL.md + scripts) and pattern-scanned by S00; Sentry skill-scanner
-# is not yet approved (G1 K20), so the scan was a grep for network/exec/destructive patterns. See preflight.md.
+# was approved after install (G1 K20, 2026-11-24); skill-scanner then ran on all third-party skills (results in preflight.md).
+# Earlier grep pass remains as a first check.
 plugins:  # claude plugin install <name>@claude-plugins-official --scope project (2026-11-24)
   K1: frontend-design
   K2: code-review

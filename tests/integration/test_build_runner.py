@@ -45,3 +45,22 @@ def test_planted_key_blocks_and_never_launches(tmp_path: Path) -> None:
     assert not marker.exists()
     assert "`[!]`" in tasks.read_text()
     assert "planted-fake" not in r.stdout + r.stderr
+
+
+def test_notify_vars_are_not_a_leak_and_do_not_reach_claude(tmp_path: Path) -> None:
+    r, tasks, marker = _run(tmp_path, {"NOTION_TOKEN": "x", "NTFY_TOKEN": "y"})
+    assert r.returncode == 0 and marker.exists() and "`[x]`" in tasks.read_text()
+
+
+def test_runner_stops_at_slice_needing_founder(tmp_path: Path) -> None:
+    tasks = tmp_path / "T.md"
+    tasks.write_text("### S00: A `[?]`\n### S01: B `[ ]`\n")
+    env = {
+        **os.environ,
+        "TASKS_FILE": str(tasks),
+        "RUNNER_LOG": str(tmp_path / "r.log"),
+        "DRY_RUN": "1",
+    }
+    r = subprocess.run(["bash", str(RUNNER)], env=env, capture_output=True, text=True, check=False)  # noqa: S603, S607
+    assert r.returncode == 0
+    assert "S01: B `[ ]`" in tasks.read_text()
