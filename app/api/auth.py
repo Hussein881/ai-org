@@ -56,7 +56,7 @@ def current_session(
         if not hmac.compare_digest(sent, data["csrf"]):
             raise HTTPException(403, "CSRF token missing or invalid")
     # The account must still exist: removing/replacing the founder ends old sessions.
-    if db.scalar(select(User.id).where(User.email == data["email"])) is None:
+    if db.scalar(select(User.id).where(User.id == data.get("uid"))) is None:
         raise HTTPException(401, "Not authenticated")
     return {"email": data["email"], "csrf": data["csrf"]}
 
@@ -83,7 +83,7 @@ def login(
         db.commit()
         raise HTTPException(401, "Invalid email or password")
     csrf = secrets.token_urlsafe(32)
-    token = _serializer(settings).dumps({"email": user.email, "csrf": csrf})
+    token = _serializer(settings).dumps({"email": user.email, "uid": user.id, "csrf": csrf})
     response.set_cookie(
         COOKIE,
         token,

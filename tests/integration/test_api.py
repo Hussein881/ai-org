@@ -104,3 +104,14 @@ def test_session_dies_when_account_removed(client):
         s.execute(text("delete from users"))
         s.commit()
     assert client.get("/api/roles").status_code == 401
+
+
+def test_recreated_account_does_not_revive_session(client):
+    from app.db.models import User
+
+    login(client)
+    with Session(engine()) as s:
+        s.execute(text("delete from users"))
+        s.add(User(email="f@x.io", password_hash="x"))  # noqa: S106
+        s.commit()
+    assert client.get("/api/roles").status_code == 401
