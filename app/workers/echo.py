@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import tasks
+from app.core.state import InvalidTransitionError
 from app.db.models import Run, Task
 from app.db.session import engine
 
@@ -40,23 +41,37 @@ def claim_one(db: Session) -> tuple[Task, Run] | None:
     return task, run
 
 
-def finish(db: Session, task: Task, run: Run) -> None:
-    """Echo the task back, run the deterministic check, and complete."""
+def _abandon(db: Session, task: Task, run: Run, reason: str) -> None:
+    db.rollback()
+    run.status = "abandoned"
     tasks.emit(
-        db, "run.output", ACTOR, task_id=task.id, run_id=run.id, payload={"echo": task.title}
+        db, "run.abandoned", ACTOR, task_id=task.id, run_id=run.id, payload={"reason": reason}
     )
-    tasks.transition(db, task, "verifying", actor=ACTOR)
-    check = {"kind": "deterministic", "check": "echo matches title", "passed": task.title != ""}
-    run.status, run.result = "succeeded", {"echo": task.title}
-    tasks.transition(db, task, "completed", actor=ACTOR, check_record=check)
+    tasks.set_role_status(db, task.assignee, "idle", task.id)
+    db.commit()
+
+
+def finish(db: Session, task: Task, run: Run) -> None:
+    """Echo the task back, run the deterministic check, and complete (unless it was cancelled)."""
+    try:
+        tasks.emit(
+            db, "run.output", ACTOR, task_id=task.id, run_id=run.id, payload={"echo": task.title}
+        )
+        tasks.transition(db, task, "verifying", actor=ACTOR)
+        check = {"kind": "deterministic", "check": "echo matches title", "passed": task.title != ""}
+        run.status, run.result = "succeeded", {"echo": task.title}
+        tasks.transition(db, task, "completed", actor=ACTOR, check_record=check)
+    except InvalidTransitionError:
+        _abandon(db, task, run, "task changed while running")
+        return
     tasks.emit(db, "run.finished", ACTOR, task_id=task.id, run_id=run.id)
     tasks.set_role_status(db, task.assignee, "idle", task.id)
     db.commit()
 
 
 def reconcile(db: Session) -> int:
-    """After a restart, a `running` task has no live worker: abandon its run and requeue it."""
-    stuck = db.scalars(select(Task).where(Task.status == "running")).all()
+    """After a restart, a running/verifying task has no live worker: abandon its run, requeue."""
+    stuck = db.scalars(select(Task).where(Task.status.in_(("running", "verifying")))).all()
     for task in stuck:
         for run in db.scalars(select(Run).where(Run.task_id == task.id, Run.status == "running")):
             run.status = "abandoned"

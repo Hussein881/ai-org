@@ -205,3 +205,38 @@ def test_stream_replays_missed_events(client):
             if "task.created" in body:
                 break
     assert f"id: {first}" in body and "task.created" in body
+
+
+def test_cancel_during_run_does_not_strand_role_or_run(client):
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "c"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        assert (
+            client.post(
+                f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h
+            ).status_code
+            == 200
+        )
+        echo.finish(s, task, run)
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "cancelled"
+    assert client.get("/api/roles/ceo").json()["status"] == "idle"
+    with Session(engine()) as s:
+        assert s.execute(text("select status from runs")).scalar() == "abandoned"
+
+
+def test_restart_requeues_verifying_task(client):
+    from app.core import tasks as svc
+    from app.db.models import Task
+    from app.workers import echo
+
+    h = _csrf(client)
+    tid = client.post("/api/tasks", json={"title": "v"}, headers=h).json()["id"]
+    with Session(engine()) as s:
+        task, _ = echo.claim_one(s)
+        svc.transition(s, task, "verifying", actor="t")
+    with Session(engine()) as s:
+        assert echo.reconcile(s) == 1
+        assert s.get(Task, tid).status == "ready"

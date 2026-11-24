@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
@@ -14,6 +15,8 @@ from app.api.auth import current_session
 from app.core import state, tasks
 from app.db.models import Event, Task
 from app.db.session import engine, get_db
+
+STREAM_MAX_SECONDS = 600
 
 router = APIRouter(prefix="/api", tags=["tasks"], dependencies=[Depends(current_session)])
 
@@ -140,8 +143,9 @@ async def stream(request: Request) -> StreamingResponse:
 
     async def gen() -> AsyncIterator[str]:
         last = start
-        yield "retry: 2000\n\n"
-        while not await request.is_disconnected():
+        deadline = time.monotonic() + STREAM_MAX_SECONDS  # forces periodic re-authentication
+        yield f"retry: 2000\nid: {start}\n\n"  # so a reconnect always resumes from here
+        while time.monotonic() < deadline and not await request.is_disconnected():
             events = await asyncio.to_thread(_fetch_after, last)
             for e in events:
                 last = e.seq

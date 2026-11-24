@@ -54,6 +54,7 @@ def transition(
     check_record: dict[str, Any] | None = None,
 ) -> Task:
     """Validated move. Raises InvalidTransitionError; caller commits via this function."""
+    db.refresh(task, with_for_update=True)  # re-read under a row lock: no stale-state transitions
     if check_record is not None:
         task.check_record = check_record
     new = state.check(task.status, target, has_check_record=task.check_record is not None)
