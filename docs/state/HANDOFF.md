@@ -2,13 +2,13 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S00 (status: not started)
+- Active slice: S00 (status: needs founder; branch slice/S00-preflight, not merged)
 - Phase: A
 - Branch: main @ <commit>
 
 ## Last session
-- Ended with: <none yet>
-- Did: package placed in its final layout (v2.1); v2.2 setup fixes (D-036 services/secrets/sudoers, D-037 uv Python)
+- Ended with: NEEDS_FOUNDER S00 (see docs/state/preflight.md)
+- Did: G3 recorded; scaffold, runner (tested), keycheck + 3 units written (not installed), K1-K12/K14-K16/K18/K19(diff-review)/K21/K22 installed; settings allowlist NOT extended (blocked)
 - Remaining in this slice (if CONTINUE): n/a
 
 ## Facts the next session needs (not derivable from code in 1 minute)
@@ -22,7 +22,7 @@
 - Needs Anwar: real origin URL + first push; constitution interview (before S05); optional bubblewrap
 
 ## Founder decisions pending
-- G1 answered YES-ALL; K13/K17/K20 pending S00 scan report. G3 envelopes, G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
+- G1 YES-ALL; K13/K17/K20/K19b pending founder after scan (preflight.md). G3 ACCEPT-DEFAULTS. G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
 
 ## Do not
 - Don't run `sudo` or read /srv/aiorg/secrets.

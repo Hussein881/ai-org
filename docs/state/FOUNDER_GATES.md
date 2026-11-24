@@ -24,7 +24,7 @@ Answer: N/A (rootless Docker PASS in bootstrap, 2026-11-24)
 ### G3. Quota and budget envelopes (needed by S03)
 SETUP §5: accept or change the defaults in MODEL_POLICY Part B. Options: `ACCEPT-DEFAULTS` · `CHANGE: <what>`.
 
-Answer: <unanswered>
+Answer: ACCEPT-DEFAULTS (founder, 2026-11-24)
 
 ### G4. Constitution filled (needed by S05); career targets only when backlog P2 is added
 `constitution/founder.md` (S05) is final. `config/career.yaml` is needed only when you add the Career project (Project backlog P2, D-038). Claude can interview you to draft them (bootstrap step B9). Options: `FINAL` · `CONSTITUTION-ONLY` (S05 can run, S06 waits).

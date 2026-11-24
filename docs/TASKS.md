@@ -13,7 +13,7 @@ Rules: one fresh Claude Code session per slice (the runner starts it). Read only
 ---
 ## Phase A: See it
 
-### S00: Preflight and build runner `[ ]`
+### S00: Preflight and build runner `[?]`
 Tier T1, **human-watched (interactive)** · Model `sonnet` · Review: founder reads the preflight report · Depends: bootstrap done (`docs/state/bootstrap.md`, see docs/BOOTSTRAP.md)
 Founder gate: G1 (partial rule: install only items that don't run code if unanswered)
 Read: `docs/state/bootstrap.md`, `docs/SETUP.md`, `docs/PROVIDERS.md §What S00 must verify`, `docs/AUTONOMY.md`

@@ -1,0 +1,10 @@
+[Unit]
+Description=AI Org provider key check (one-shot)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=aiorg
+EnvironmentFile=/srv/aiorg/secrets/providers.env
+EnvironmentFile=/srv/aiorg/secrets/notify.env
+ExecStart=/usr/local/lib/aiorg/keycheck.sh

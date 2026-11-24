@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Org worker
+After=network-online.target user@1001.service
+Wants=network-online.target
+
+[Service]
+User=aiorg
+EnvironmentFile=/srv/aiorg/secrets/providers.env
+EnvironmentFile=/srv/aiorg/secrets/notify.env
+Environment=XDG_RUNTIME_DIR=/run/user/1001 DOCKER_HOST=unix:///run/user/1001/docker.sock
+ExecStart=/home/aiorg/ai-org/scripts/run-worker.sh
+Restart=on-failure
+StandardOutput=append:/srv/aiorg/artifacts/logs/aiorg-worker.log
+StandardError=append:/srv/aiorg/artifacts/logs/aiorg-worker.log
+
+[Install]
+WantedBy=multi-user.target
