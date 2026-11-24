@@ -1,0 +1,44 @@
+# Dashboard binds to the Tailscale IP only (never public). Set in .env (untracked):
+#   AIORG_BIND_IP, AIORG_SESSION_SECRET, AIORG_FOUNDER_EMAIL, AIORG_FOUNDER_PASSWORD_HASH (single-quoted),
+#   POSTGRES_PASSWORD
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: aiorg
+      POSTGRES_DB: aiorg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiorg -d aiorg"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
+    restart: unless-stopped
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIORG_DATABASE_URL: postgresql+psycopg://aiorg:${POSTGRES_PASSWORD}@postgres:5432/aiorg
+      AIORG_SESSION_SECRET: ${AIORG_SESSION_SECRET:?set AIORG_SESSION_SECRET in .env}
+      AIORG_FOUNDER_EMAIL: ${AIORG_FOUNDER_EMAIL:-founder@localhost}
+      AIORG_FOUNDER_PASSWORD_HASH: ${AIORG_FOUNDER_PASSWORD_HASH:-}
+      AIORG_COOKIE_SECURE: ${AIORG_COOKIE_SECURE:-false}
+    ports:
+      - "${AIORG_BIND_IP:?set AIORG_BIND_IP to the Tailscale IP}:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    mem_limit: 256m
+    restart: unless-stopped
+
+volumes:
+  pgdata:

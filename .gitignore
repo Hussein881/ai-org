@@ -24,3 +24,8 @@ web/dist/
 .ruff_cache/
 .coverage
 htmlcov/
+web/node_modules
+web/dist
+.venv
+__pycache__
+*.pyc
