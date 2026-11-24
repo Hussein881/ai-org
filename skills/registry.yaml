@@ -14,7 +14,7 @@ plugins:  # claude plugin install <name>@claude-plugins-official --scope project
 skills:
   - {id: K9, name: react-best-practices, repo: vercel-labs/agent-skills, commit: 5a37a6329fbad3666c3207392a6a7c0110e92efb, installed: 2026-11-24, note: "markdown only"}
   - {id: K10, name: web-design-guidelines, repo: vercel-labs/agent-skills, commit: 5a37a6329fbad3666c3207392a6a7c0110e92efb, installed: 2026-11-24, note: "markdown only; SKILL.md tells the agent to curl a guidelines file from raw.githubusercontent.com at use time (remote instructions: treat as untrusted)"}
-  - {id: K11, name: shadcn, repo: shadcn-ui/ui, commit: 055aa6b7837b1808456a24beb4c97a677864aa82, installed: 2026-11-24, note: "one local .mjs showcase script, no network or exec patterns"}
+  - {id: K11, name: shadcn, repo: shadcn-ui/ui, commit: 055aa6b7837b1808456a24beb4c97a677864aa82, installed: 2026-11-24, note: "LOCAL PATCH 2026-11-24: SKILL.md line 17 (load-time npx shadcn@latest) replaced with a text note; otherwise upstream. One local .mjs showcase script"}
   - {id: K12, name: vitest, repo: antfu/skills, commit: 4a6bb39e7b45e26402eb215393c51ccf5df1ca4c, installed: 2026-11-24, note: "markdown only"}
   - {id: K14, name: webapp-testing, repo: anthropics/skills, commit: e4bb5d960d87126ff3b3a8af1a104b7db67560ba, installed: 2026-11-24, note: "runs code (python helpers), G1 YES-ALL"}
   - {id: K15, name: supabase-postgres-best-practices, repo: supabase/agent-skills, commit: c9be0e931b7930f7d02126d04774d904c381e7d7, installed: 2026-11-24, note: "markdown only"}
