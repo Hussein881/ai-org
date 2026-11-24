@@ -12,7 +12,7 @@ The "Runs code" items in SETUP §3: **context7** (MCP server; public library que
 - For the three "check in S00" items, S00 reports what they run; they need a second yes here (`YES: K13 K17 K20`) after you've read that.
 - Founder rule (2026-11-24): until K20 is approved, T1 slices review with Codex + `/code-review` + the `reviewer` subagent and record the review as **partial** instead of blocking.
 
-Answer: YES-ALL (founder, 2026-11-24). K13, K17, K20: <pending: founder decides after reading S00's scan report>
+Answer: YES-ALL (founder, 2026-11-24). K13, K17, K20, K19b: YES: K13 K17 K20 K19b (founder, 2026-11-24, after reading S00's scan)
 
 ### G2. Docker mode (needed by S01, only if rootless failed)
 Bootstrap tries rootless Docker (T-007, preferred). If it failed, `docs/state/bootstrap.md` says why. Options: `FIX-ROOTLESS` (you run the fix it lists) · `ACCEPT-DOCKER-GROUP` (adds `aiorg` to the docker group, which is root-equivalent; recorded as an accepted risk in DECISIONS T-007).

@@ -23,7 +23,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 | 3 | Gemini key + free-tier limits | UNKNOWN | key SET; live check waits for `aiorg-keycheck.service`; limits are shown only in AI Studio |
 | 4 | OpenRouter key + `/api/v1/key` limits | UNKNOWN | key SET; same |
 | 5 | Paid fallback key and cap | PARTIAL | ANTHROPIC_API_KEY SET; $30/month cap is set in the Console (D-027), not verifiable from here; live check UNKNOWN |
-| 6 | Anthropic/OpenAI terms re-check | UNKNOWN | no recorded baseline to compare against and no terms-page fetch was done; nothing observed that suggests a change (both CLIs work). Founder: confirm you want this checked, then it is a web-fetch step |
+| 6 | Anthropic/OpenAI terms re-check | **FOUNDER DECISION** | Fetched 2026-11-24 (all 5 pages loaded). No baseline to diff, so I can't say if terms tightened. Anthropic Consumer Terms (eff. 2025-10-08) §3 bar "access to the Services through automated or non-human means, whether through a bot, script, or otherwise" except via API key or where Anthropic explicitly permits; Usage Policy (eff. 2026-11-12) bars routing requests "through consumer subscriptions" for resale/proxy. Neither names `claude -p` or Claude Code. OpenAI Terms of Use bar programmatically extracting Output and circumventing rate limits; nothing names `codex exec`. Reading of text only, not a ruling. Per PROVIDERS item 6 I am marking the Claude CLI-subscription runtime route (D-026) **BLOCKED pending founder**; free tiers + fake providers continue. Founder: confirm Claude Code headless use under your plan is permitted (Anthropic docs/support), or move that route to the $30 API cap |
 | - | Notion token | UNKNOWN | SET; keycheck covers it |
 
 ## Repo scaffold, tooling, runner
@@ -34,7 +34,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
 | `scripts/build-runner.sh` dry run | PASS: dummy slice `[ ]→[~]→[x]` and back |
 | Planted fake key variable | PASS: runner refuses, never launches claude, marks slice `[!]`, key value not echoed (`tests/integration/test_build_runner.py`) |
 | `scripts/ops/keycheck.sh`, 3 units, `install-units.sh` | WRITTEN; units pass `systemd-analyze verify`; **not installed** (needs founder sudo) |
-| Full `.claude/settings.json` allowlist | **BLOCKED**: my edit to the permission file was refused by the auto-mode classifier, so I did not retry another way. Allowlist is still the bootstrap one (plus `enabledPlugins` added by the installs). Needs your decision, see below |
+| Full `.claude/settings.json` allowlist | **PROPOSED**: `.claude/settings.proposed.json` written for founder to copy over; was **BLOCKED**: my edit to the permission file was refused by the auto-mode classifier, so I did not retry another way. Allowlist is still the bootstrap one (plus `enabledPlugins` added by the installs). Needs your decision, see below |
 
 ## Plugins and skills (G1 YES-ALL; see `skills/registry.yaml` for pinned commits)
 - Installed, project scope: K1 K2 K3 K4 K5 K6 K7 K8 (official marketplace, all `enabled`).
@@ -46,7 +46,7 @@ No secret values anywhere in this file. Status: PASS / FAIL / UNKNOWN / PENDING.
   - K13 (emilkowalski): two markdown files, no scripts. Safe to approve.
   - K17 (docker/skills): markdown plus two local scripts (`docker build`, `docker compose config`). Reasonable to approve; guardrails skill is markdown.
   - K20 (getsentry): `find-bugs` markdown; `skill-scanner` has one static-regex Python script (imports yaml, no network). Reasonable to approve.
-  - Answer in G1 as `YES: K13 K17 K20 K19b`. Until K20 is approved, T1 review is recorded as partial.
+  - **Update:** founder answered `YES: K13 K17 K20 K19b` (2026-11-24); all installed and pinned. K20 approved, so T1 review is no longer partial for that reason.
 
 ## What you need to do
 1. Install units (one sudo, read the script first): `sudo bash /home/aiorg/ai-org/scripts/ops/install-units.sh`, then `sudo -n systemctl start aiorg-keycheck.service` can be run by Claude to fill the UNKNOWN provider rows.
