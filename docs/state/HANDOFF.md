@@ -2,14 +2,14 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S01 (built, review FAIL x2, awaiting founder cookie decision; branch slice/S01-walking-skeleton, NOT merged). Runner stays stopped
+- Active slice: S02 (not started; run by hand, runner stays stopped). S01 merged to main (review partial)
 - Phase: A
-- Branch: slice/S01-walking-skeleton
+- Branch: main
 
 ## Last session
 - Ended with: S01 stack running (docker compose, api+postgres healthy); see docs/state/slices/S01.md
 - Did: login, org chart, drawer, 21 pytest + 4 Playwright pass; Codex review FAIL x2 (cookie Secure over http = founder decision)
-- Remaining: founder cookie decision, /code-review + find-bugs, Codex round 3, merge. e2e needs LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu
+- Remaining: founder runs `tailscale serve --bg --https=443 http://100.66.205.39:8000` (needs HTTPS certs enabled in Tailscale admin); until then use SSH tunnel + http://localhost:8000. e2e needs LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu
 
 ## Facts the next session needs (not derivable from code in 1 minute)
 - Root setup is done by `scripts/bootstrap/root-setup.sh` (founder runs it with sudo). Claude never uses sudo.
