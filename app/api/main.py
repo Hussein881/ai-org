@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,10 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api import auth, roles
+from app.api import auth, roles, tasks
 from app.config import get_settings
 from app.db.session import engine
 from app.org.seed import seed_roles
+from app.workers import echo
 
 log = logging.getLogger("aiorg")
 
@@ -23,12 +25,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     with Session(engine()) as db:
         n = seed_roles(db, settings.roles_dir)
     log.info("seeded/updated %d roles", n)
+    worker = asyncio.create_task(echo.loop()) if settings.worker_enabled else None
     yield
+    if worker:
+        worker.cancel()
 
 
 app = FastAPI(title="AI Org", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(roles.router)
+app.include_router(tasks.router)
 
 
 @app.get("/api/health", tags=["ops"])

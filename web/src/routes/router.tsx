@@ -3,6 +3,8 @@ import { createRootRouteWithContext, createRoute, createRouter, redirect } from 
 import { api } from '@/lib/api'
 import { AppShell } from '@/components/AppShell'
 import { LoginPage } from './LoginPage'
+import { TaskDetailPage } from '@/features/tasks/TaskDetailPage'
+import { TasksPage } from '@/features/tasks/TasksPage'
 import { OrgPage } from '@/features/org/OrgPage'
 
 const root = createRootRouteWithContext<{ queryClient: QueryClient }>()()
@@ -25,7 +27,10 @@ const shell = createRoute({
 })
 const home = createRoute({ getParentRoute: () => shell, path: '/', component: OrgPage })
 
-const routeTree = root.addChildren([login, shell.addChildren([home])])
+const tasks = createRoute({ getParentRoute: () => shell, path: '/tasks', component: TasksPage })
+const taskDetail = createRoute({ getParentRoute: () => shell, path: '/tasks/$taskId', component: TaskDetailPage })
+
+const routeTree = root.addChildren([login, shell.addChildren([home, tasks, taskDetail])])
 export const router = createRouter({ routeTree, context: { queryClient: undefined! } })
 
 declare module '@tanstack/react-router' {

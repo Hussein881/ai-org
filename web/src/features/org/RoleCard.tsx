@@ -10,7 +10,7 @@ export function StatusRing({ status }: { status: string }) {
     <span
       role="img"
       aria-label={`Status: ${s.label}`}
-      className={`inline-block size-3 shrink-0 rounded-full border-[3px] ${s.ring}`}
+      className={`inline-block size-3 shrink-0 rounded-full border-[3px] ${s.ring} ${status === 'working' ? 'animate-pulse' : ''}`}
     />
   )
 }
