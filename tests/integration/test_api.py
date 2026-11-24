@@ -95,3 +95,12 @@ def test_ensure_founder_keeps_single_account(client, monkeypatch):
     with Session(engine()) as s:
         emails = s.execute(text("select email from users")).scalars().all()
     assert emails == ["new@x.io"]
+
+
+def test_session_dies_when_account_removed(client):
+    login(client)
+    assert client.get("/api/roles").status_code == 200
+    with Session(engine()) as s:
+        s.execute(text("delete from users"))
+        s.commit()
+    assert client.get("/api/roles").status_code == 401

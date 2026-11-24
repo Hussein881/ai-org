@@ -39,7 +39,11 @@ def _serializer(settings: Settings) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(settings.session_secret, salt="aiorg-session")
 
 
-def current_session(request: Request, settings: Settings = Depends(get_settings)) -> dict[str, str]:
+def current_session(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
     raw = request.cookies.get(COOKIE)
     if not raw:
         raise HTTPException(401, "Not authenticated")
@@ -51,6 +55,9 @@ def current_session(request: Request, settings: Settings = Depends(get_settings)
         sent = request.headers.get("x-csrf-token", "")
         if not hmac.compare_digest(sent, data["csrf"]):
             raise HTTPException(403, "CSRF token missing or invalid")
+    # The account must still exist: removing/replacing the founder ends old sessions.
+    if db.scalar(select(User.id).where(User.email == data["email"])) is None:
+        raise HTTPException(401, "Not authenticated")
     return {"email": data["email"], "csrf": data["csrf"]}
 
 
