@@ -19,10 +19,10 @@
 - Root access for aiorg is only the sudoers rule in /etc/sudoers.d/aiorg (D-036). Services are system units with User=aiorg; build sessions must pass scripts/check-env-clean.sh.
 
 ## Open issues / blockers
-- Needs Anwar: real origin URL + first push; constitution interview (before S05); optional bubblewrap
+- S00 review FAIL x4 (docs/state/slices/S00.md); installed units are stale; keep build-runner stopped. Needs Anwar: constitution interview (before S05); optional bubblewrap
 
 ## Founder decisions pending
-- G1 YES-ALL; K13/K17/K20/K19b pending founder after scan (preflight.md). G3 ACCEPT-DEFAULTS. G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
+- G1 fully answered (YES-ALL + K13/K17/K20/K19b). G3 ACCEPT-DEFAULTS. G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
 
 ## Do not
 - Don't run `sudo` or read /srv/aiorg/secrets.
