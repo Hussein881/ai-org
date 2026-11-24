@@ -13,7 +13,7 @@ Rules: one fresh Claude Code session per slice (the runner starts it). Read only
 ---
 ## Phase A: See it
 
-### S00: Preflight and build runner `[?]`
+### S00: Preflight and build runner `[x]`
 Tier T1, **human-watched (interactive)** · Model `sonnet` · Review: founder reads the preflight report · Depends: bootstrap done (`docs/state/bootstrap.md`, see docs/BOOTSTRAP.md)
 Founder gate: G1 (partial rule: install only items that don't run code if unanswered)
 Read: `docs/state/bootstrap.md`, `docs/SETUP.md`, `docs/PROVIDERS.md §What S00 must verify`, `docs/AUTONOMY.md`
@@ -33,6 +33,7 @@ Skills: K5 K6 K7 K8 K19 (supply-chain) K20 (scanner). Installs and pins K1 to K2
 **Acceptance:** preflight report with every check PASS/FAIL/UNKNOWN; runner dry-run moves a dummy slice `[ ]→[x]` and back; with a planted fake key variable in the runner's environment the runner refuses to launch `claude` and marks the slice `[!]` (test); keycheck rows PASS or UNKNOWN (unit not yet installed); no secrets in git (scanner passes). Missing prerequisites are marked `[!]` with the exact fix.
 **What you'll see:** `docs/state/preflight.md` in the repo, and `systemctl status build-runner` (stopped until you start it after S01).
 **Gate:** no hands-free running until you've read the preflight report.
+**Closed 2026-11-24 by founder override (option C):** merged with Codex review FAIL x4; `scripts/build-runner.sh` is NOT approved for hands-free use (open defects in docs/state/slices/S00.md). Run S01 by hand; finish and re-review the runner before `systemctl start build-runner`.
 
 ### S01: Walking skeleton with org chart `[ ]`
 Tier T1, **human-watched** · Model `sonnet` (effort high), `frontend-design` skill for the visual direction · Review `codex` · Depends S00
