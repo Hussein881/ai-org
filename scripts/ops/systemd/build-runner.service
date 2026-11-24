@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 User=aiorg
 EnvironmentFile=/srv/aiorg/secrets/notify.env
+Environment=PATH=/home/aiorg/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/1001 DOCKER_HOST=unix:///run/user/1001/docker.sock
 ExecStart=/usr/local/lib/aiorg/build-runner.sh
 Restart=on-failure
