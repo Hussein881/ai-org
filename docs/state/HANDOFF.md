@@ -1,7 +1,7 @@
 # HANDOFF (state carried between fresh sessions; keep ≤60 lines; overwrite, don't append)
 
 ## Now
-- Bootstrap: NOT RUN (run `/bootstrap` first; see docs/BOOTSTRAP.md)
+- Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
 - Active slice: S00 (status: not started)
 - Phase: A
 - Branch: main @ <commit>
@@ -19,10 +19,10 @@
 - Root access for aiorg is only the sudoers rule in /etc/sudoers.d/aiorg (D-036). Services are system units with User=aiorg; build sessions must pass scripts/check-env-clean.sh.
 
 ## Open issues / blockers
-- none yet
+- Needs Anwar: real origin URL + first push; constitution interview (before S05); optional bubblewrap
 
 ## Founder decisions pending
-- G1 answered YES-ALL; K13/K17/K20 pending S00 scan report. G3 envelopes, G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 only if rootless Docker fails.
+- G1 answered YES-ALL; K13/K17/K20 pending S00 scan report. G3 envelopes, G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
 
 ## Do not
 - Don't run `sudo` or read /srv/aiorg/secrets.
