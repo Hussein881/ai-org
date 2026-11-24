@@ -31,10 +31,11 @@ export function RoleCardBody({ role }: { role: Role }) {
 }
 
 export function RoleNode({ data }: NodeProps) {
-  const role = (data as { role: Role }).role
+  const { role, onOpen } = data as { role: Role; onOpen?: (slug: string) => void }
   return (
     <button
       type="button"
+      onClick={() => onOpen?.(role.slug)}
       style={{ width: NODE_W, height: NODE_H }}
       className="rounded-xl border bg-card p-3 text-left text-card-foreground shadow-sm transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
     >

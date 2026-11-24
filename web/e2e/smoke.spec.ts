@@ -47,10 +47,13 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.screenshot({ path: `${SHOTS}/org-${info.project.name}-${scheme}.png` })
     expect((await new AxeBuilder({ page }).analyze()).violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual([])
 
-    await card.click()
+    await card.focus()
+    await page.keyboard.press('Enter') // keyboard path
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Responsibilities')).toBeVisible()
+    await page.waitForTimeout(600) // let the slide-in finish
     await page.screenshot({ path: `${SHOTS}/drawer-${info.project.name}-${scheme}.png` })
+    expect((await new AxeBuilder({ page }).analyze()).violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual([])
     await page.keyboard.press('Escape')
     await expect(drawer).toBeHidden()
     expect(problems).toEqual([])

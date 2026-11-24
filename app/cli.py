@@ -4,7 +4,7 @@ import getpass
 import sys
 
 from argon2 import PasswordHasher
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -24,6 +24,8 @@ def ensure_founder() -> None:
             db.add(User(email=s.founder_email, password_hash=s.founder_password_hash))
         else:
             user.password_hash = s.founder_password_hash
+        # Single founder account: drop any account left over from a previous email.
+        db.execute(delete(User).where(User.email != s.founder_email))
         db.commit()
 
 

@@ -6,7 +6,7 @@ export const NODE_W = 220
 export const NODE_H = 96
 const elk = new ELK()
 
-export type CardData = { role: Role } | { founder: true }
+export type CardData = { role: Role; onOpen?: (slug: string) => void } | { founder: true }
 
 export function buildGraph(roles: Role[]): { nodes: Node<CardData>[]; edges: Edge[] } {
   const slugs = new Set(roles.map((r) => r.slug))

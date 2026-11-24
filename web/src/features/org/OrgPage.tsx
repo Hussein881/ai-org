@@ -26,6 +26,11 @@ export function OrgPage() {
     }
   }, [graph, roles.data])
 
+  const nodes = useMemo(
+    () => laidOut.map((n) => (n.type === 'role' ? { ...n, data: { ...n.data, onOpen: setSelected } } : n)),
+    [laidOut],
+  )
+
   if (roles.isPending) return <Skeleton className="m-4 h-64" />
   if (roles.isError)
     return (
@@ -62,14 +67,13 @@ export function OrgPage() {
       </ul>
       <div className="hidden h-full md:block" data-testid="org-chart">
         <ReactFlow
-          nodes={laidOut}
+          nodes={nodes}
           edges={graph.edges}
           nodeTypes={nodeTypes}
           fitView
           nodesDraggable={false}
           nodesConnectable={false}
           minZoom={0.3}
-          onNodeClick={(_, n) => n.type === 'role' && setSelected(n.id)}
         >
           <Background />
           <Controls showInteractive={false} />

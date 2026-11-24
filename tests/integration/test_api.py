@@ -84,3 +84,14 @@ def test_events_are_append_only(client):
 def test_migration_down_and_up(db_url):
     alembic("downgrade", "base")
     alembic("upgrade", "head")
+
+
+def test_ensure_founder_keeps_single_account(client, monkeypatch):
+    from app.cli import ensure_founder
+
+    monkeypatch.setenv("AIORG_FOUNDER_EMAIL", "new@x.io")
+    monkeypatch.setenv("AIORG_FOUNDER_PASSWORD_HASH", "$argon2id$stub")
+    ensure_founder()
+    with Session(engine()) as s:
+        emails = s.execute(text("select email from users")).scalars().all()
+    assert emails == ["new@x.io"]
