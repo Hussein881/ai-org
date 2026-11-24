@@ -2,14 +2,17 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S02 (not started; run by hand, runner stays stopped). S01 merged to main (review partial)
-- Phase: A
+- Active slice: S03 (not started; run by hand, runner stays stopped). S00, S01, S02 are on main (S01/S02 reviews partial)
+- Phase: A done (tag phase-a-done) -> Phase B
 - Branch: main
 
 ## Last session
-- Ended with: S02 done, stack running (api+postgres healthy); see docs/state/slices/S02.md
-- Did: login, org chart, drawer, 21 pytest + 4 Playwright pass; Codex review FAIL x2 (cookie Secure over http = founder decision)
-- Remaining: founder runs `tailscale serve --bg --https=443 http://100.66.205.39:8000` (needs HTTPS certs enabled in Tailscale admin); not needed: founder accepted plain http over the tailnet (cookie Secure=false).
+- Ended with: S02 merged; stack running via docker compose (api+postgres healthy). Records: docs/state/slices/S01.md, S02.md
+- Did: tasks + state machine, SSE, echo worker, Tasks board, live org chart; 43 pytest + 9 Playwright pass; Codex review FAIL x3 with fixes, 2 accepted SSE edge cases
+- Mistake fixed: S02 commits had landed on slice/S01-walking-skeleton; merged to main afterwards and tag moved
+- Cookie: plain http over the tailnet accepted (AIORG_COOKIE_SECURE=false); HTTPS/tailscale serve not needed
+- e2e needs LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu (Chromium libs extracted without root)
+- Founder should change the password: `uv run python -m app.cli set-password` in a real terminal, then `docker compose up -d`
 
 ## Facts the next session needs (not derivable from code in 1 minute)
 - Root setup is done by `scripts/bootstrap/root-setup.sh` (founder runs it with sudo). Claude never uses sudo.
