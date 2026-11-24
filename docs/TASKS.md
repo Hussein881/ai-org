@@ -35,7 +35,7 @@ Skills: K5 K6 K7 K8 K19 (supply-chain) K20 (scanner). Installs and pins K1 to K2
 **Gate:** no hands-free running until you've read the preflight report.
 **Closed 2026-11-24 by founder override (option C):** merged with Codex review FAIL x4; `scripts/build-runner.sh` is NOT approved for hands-free use (open defects in docs/state/slices/S00.md). Run S01 by hand; finish and re-review the runner before `systemctl start build-runner`.
 
-### S01: Walking skeleton with org chart `[ ]`
+### S01: Walking skeleton with org chart `[~]`
 Tier T1, **human-watched** · Model `sonnet` (effort high), `frontend-design` skill for the visual direction · Review `codex` · Depends S00
 Founder gate: G2, only if `docs/state/bootstrap.md` shows rootless Docker FAIL
 Read: ARCH §Topology §Stack §UI §Security
