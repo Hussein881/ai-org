@@ -1,0 +1,26 @@
+# Secrets never live in the repo (they're in /srv/aiorg/secrets). Belt and braces:
+.env
+.env.*
+*.env
+secrets/
+*.pem
+*.key
+id_*
+auth.json
+credentials*.json
+.claude/settings.local.json
+.claude/worktrees/
+
+# Local state and build output
+artifacts/
+*.log
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+web/dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

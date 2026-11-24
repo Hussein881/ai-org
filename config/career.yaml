@@ -1,0 +1,10 @@
+# Career targets (TEMPLATE). data_class: founder_private. Never sent to free-tier providers.
+# Fill it in yourself, or ask Claude to interview you (docs/BOOTSTRAP.md B9). Used by S06.
+target_companies: []        # e.g. [NVIDIA, Qualcomm]
+role_titles: []             # e.g. ["Staff AI Engineer", "Solutions Architect, GenAI"]
+seniority: []               # e.g. [senior, staff, principal]
+locations: []               # cities, or "remote"
+remote_ok: true
+must_haves: []
+deal_breakers: []
+resume_path: "<absolute path to your resume on the server>"   # stays founder_private; S06 checks its permissions

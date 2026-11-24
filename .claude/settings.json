@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(whoami)", "Bash(hostname)", "Bash(uname:*)", "Bash(cat /etc/os-release)", "Bash(nproc)",
+      "Bash(free:*)", "Bash(df:*)", "Bash(timedatectl:*)", "Bash(getent hosts:*)", "Bash(ss -ltn)",
+      "Bash(tailscale status:*)", "Bash(tailscale ip:*)",
+      "Bash(git --version)", "Bash(node -v)", "Bash(npm -v)",
+      "Bash(uv --version)", "Bash(uv python find:*)", "Bash(uv python install 3.12)", "Bash(uv run --python 3.12 python --version)",
+      "Bash(claude --version)", "Bash(codex --version)", "Bash(codex login status)",
+      "Bash(docker --version)", "Bash(docker info:*)", "Bash(docker compose version)", "Bash(docker run --rm hello-world)",
+      "Bash(dockerd-rootless-setuptool.sh:*)", "Bash(systemctl --user:*)",
+      "Bash(systemctl status:*)", "Bash(systemctl is-active:*)", "Bash(systemctl is-enabled:*)",
+      "Bash(sudo -n systemctl start aiorg-worker.service)", "Bash(sudo -n systemctl stop aiorg-worker.service)", "Bash(sudo -n systemctl restart aiorg-worker.service)",
+      "Bash(sudo -n systemctl start build-runner.service)", "Bash(sudo -n systemctl stop build-runner.service)", "Bash(sudo -n systemctl restart build-runner.service)",
+      "Bash(sudo -n systemctl start aiorg-keycheck.service)", "Bash(sudo -n -l)",
+      "Bash(bash scripts/check-env-clean.sh)", "Bash(scripts/check-env-clean.sh)",
+      "Bash(git init:*)", "Bash(git status:*)", "Bash(git add:*)", "Bash(git commit:*)", "Bash(git log:*)",
+      "Bash(git diff:*)", "Bash(git branch:*)", "Bash(git config:*)", "Bash(git remote:*)",
+      "Bash(git push -u origin main)", "Bash(git push origin main)",
+      "Bash(ssh -T git@github.com)", "Bash(ssh-keyscan:*)", "Bash(ssh-keygen -lf:*)",
+      "Bash(cat /srv/aiorg/artifacts/secrets-status.txt)", "Bash(cat /srv/aiorg/artifacts/keycheck.txt)",
+      "Bash(claude -p:*)", "Bash(codex exec --sandbox read-only:*)"
+    ],
+    "deny": [
+      "Bash(su)", "Bash(su *)", "Bash(pkexec:*)", "Bash(sudo -i:*)", "Bash(sudo -s:*)", "Bash(sudo su:*)", "Bash(sudo bash:*)",
+      "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git reset --hard:*)",
+      "Bash(rm -rf:*)", "Bash(usermod:*)", "Bash(env)", "Bash(printenv:*)",
+      "Read(//srv/aiorg/secrets/**)", "Bash(cat /srv/aiorg/secrets/:*)"
+    ]
+  }
+}
