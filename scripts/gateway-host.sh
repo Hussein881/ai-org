@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 cmd=${1:?usage: gateway-host.sh smoke|echo [args]}; shift
 set -a; . ./.env; set +a
-export AIORG_DATABASE_URL="postgresql+psycopg://aiorg:${POSTGRES_PASSWORD}@127.0.0.1:5432/aiorg"
+export AIORG_DATABASE_URL="postgresql+psycopg://aiorg:${POSTGRES_PASSWORD}@127.0.0.1:${AIORG_PG_PORT:-5432}/aiorg"
 export AIORG_GATEWAY_MODE=live
 case $cmd in
   smoke) exec .venv/bin/python -m app.gateway.cli smoke "$@" ;;

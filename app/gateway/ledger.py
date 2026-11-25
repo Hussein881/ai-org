@@ -59,7 +59,7 @@ def window_usage(
     start = _window_start(limit, now, policy.day_tz)
     member = ModelUsage.reserved_at >= start
     if limit.max_usd is not None:  # unsettled spend carries over a window rollover
-        member = or_(member, ModelUsage.outcome == "reserved")
+        member = or_(member, ModelUsage.outcome == "reserved", ModelUsage.finished_at >= start)
     q = [ModelUsage.provider == provider, member]
     if limit.model:
         q.append(ModelUsage.model == limit.model)

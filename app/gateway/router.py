@@ -1,12 +1,11 @@
 """The gateway: route -> data_class -> quota envelope -> fallback chain -> queue until reset."""
 
-import json
 import logging
 import subprocess
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -15,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.gateway import ledger
 from app.gateway.assemble import assemble
 from app.gateway.providers.base import Provider
-from app.gateway.redact import redact, redact_text
+from app.gateway.redact import redact_json, redact_text
 from app.gateway.types import (
     AllRoutesFailed,
     Clock,
@@ -38,6 +37,7 @@ from app.policy.model_policy import PUBLIC_ONLY, ModelPolicy
 log = logging.getLogger("aiorg.gateway")
 # Hard floor, independent of the YAML: what each provider class may ever receive.
 FLOOR_PUBLIC_ONLY = PUBLIC_ONLY
+BUILD_PAUSE_RETRY = timedelta(minutes=15)
 
 
 @dataclass(frozen=True)
@@ -133,7 +133,7 @@ class Gateway:
             if p.data_class != "secret":
                 effective = max_class(effective, p.data_class)
         prompt = redact_text(assemble(parts, budget_hint or self.policy.cap_for(role)))
-        if schema is not None and redact(json.dumps(schema))[1]:
+        if schema is not None and redact_json(schema) != schema:  # decoded keys and values
             raise DataClassRefused("schema contains secret-looking content")
         ref = task_ref or TaskRef()
         refused = skipped = 0
@@ -151,6 +151,7 @@ class Gateway:
                 continue
             if provider == "claude_cli" and not allow_during_build and self.is_build_active():
                 skipped += 1
+                resets.append(self.clock() + BUILD_PAUSE_RETRY)  # paused: queue, not fail
                 continue
             outcome = self._attempt(
                 prov,

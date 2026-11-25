@@ -2,6 +2,7 @@ import copy
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,8 @@ class Clock:
 def make_policy(mutate=None) -> ModelPolicy:
     d = yaml.safe_load((ROOT / "config/model_policy.yaml").read_text())
     d = copy.deepcopy(d)
+    # router tests need a two-step chain; the shipped ceo.ack route is single-step
+    d["routes"]["ceo.ack"] = ["claude_cli:haiku", "anthropic_api:claude-haiku-5-5"]
     if mutate:
         mutate(d)
     return ModelPolicy.model_validate(d)
@@ -467,3 +470,44 @@ def test_build_probe_only_permits_explicitly_stopped_states(monkeypatch, stdout,
         router.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout, "")
     )
     assert router.systemctl_build_active() is active
+
+
+def test_build_pause_with_no_fallback_queues_instead_of_failing(env):
+    build, provs, clock = env
+    gw = build(lambda d: d["routes"].__setitem__("solo", ["claude_cli:haiku"]), build_active=True)
+    with pytest.raises(Queued) as q:
+        gw.complete("solo", None, part("x"), None, "public")
+    assert q.value.resets_at > clock.now and provs["claude_cli"].calls == []
+
+
+def test_call_settled_after_rollover_counts_in_the_new_month(env):
+    build, _, clock = env
+    gw = build()
+    clock.now = datetime(2026, 11, 30, 23, 59, tzinfo=UTC)
+    later = datetime(2026, 12, 1, 0, 2, tzinfo=UTC)
+    with Session(engine()) as s:
+        uid = ledger.reserve(
+            s,
+            gw.policy,
+            "anthropic_api",
+            "claude-haiku-5-5",
+            "ceo",
+            "x",
+            None,
+            None,
+            clock.now,
+            "p",
+            1000,
+        )
+        ledger.finalize(s, uid, outcome="ok", now=later, latency_ms=1, cost_usd=Decimal("2.5"))
+        limit = gw.policy.providers["anthropic_api"].limits[0]
+        assert ledger.window_usage(s, "anthropic_api", limit, later, gw.policy).used == 2.5
+
+
+def test_escaped_known_secret_in_schema_is_refused(env, monkeypatch):
+    build, provs, _ = env
+    value = 'odd"value\\with-escapes-123'
+    monkeypatch.setenv("SOME_VENDOR_API_KEY", value)
+    with pytest.raises(DataClassRefused):
+        build().complete("ceo", None, part("x"), {"enum": [value]}, "public", purpose="ack")
+    assert provs["claude_cli"].calls == []

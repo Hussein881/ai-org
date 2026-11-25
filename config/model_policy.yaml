@@ -63,7 +63,7 @@ providers:
     models: {default: {id: default, price_in: 0, price_out: 0}}
 routes:
   ceo: [codex_cli:default, claude_cli:opus, openai_api:default]
-  ceo.ack: [claude_cli:haiku, anthropic_api:claude-haiku-5-5]
+  ceo.ack: [claude_cli:haiku]   # exactly one Haiku attempt, no paid fallback
   board-advisor: [claude_cli:opus, claude_cli:sonnet, anthropic_api:claude-opus-5-5]
   chief-of-staff: [claude_cli:sonnet, anthropic_api:claude-sonnet-5-5]
   chief-of-staff.chat: [anthropic_api:claude-sonnet-5-5, claude_cli:sonnet]

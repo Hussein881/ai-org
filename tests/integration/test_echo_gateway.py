@@ -181,3 +181,21 @@ def test_stored_outputs_are_redacted(client):
         blob += str(s.execute(text("select payload from events where kind='run.output'")).all())
     assert planted not in blob
     assert client.get(f"/api/tasks/{tid}").json()["status"] == "completed"
+
+
+def test_shipped_ack_route_is_a_single_haiku_attempt():
+    policy = load_model_policy("config/model_policy.yaml")
+    assert policy.route_for("ceo", "ack") == [("claude_cli", "haiku")]
+
+
+def test_failed_ack_makes_no_second_or_paid_call(client):
+    from app.gateway.types import ProviderError
+
+    tid = new_task(client)
+    g, provs = gw()
+    provs["claude_cli"].script = [ProviderError("cli_error")]
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        echo.finish(s, task, run, g)
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "failed_execution"
+    assert len(provs["claude_cli"].calls) == 1 and provs["anthropic_api"].calls == []

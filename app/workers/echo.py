@@ -102,16 +102,24 @@ def live_reply(db: Session, task: Task, run: Run, gateway: Gateway) -> dict[str,
     return {"reply": line, "provider": res.provider, "model": res.model, "source": "model"}
 
 
-def _superseded(db: Session, run: Run) -> bool:
-    """Fence: if a restart/another worker took this run away, this attempt must not write."""
+def _lock_owned(db: Session, task: Task, run: Run) -> bool:
+    """Lock task then run. True if this attempt still owns the run; the locks are held until
+    the caller commits, so reconciliation cannot take the run away between check and write."""
     db.rollback()
-    db.refresh(run)
-    return run.status != "running"
+    db.refresh(task, with_for_update=True)
+    db.refresh(run, with_for_update=True)
+    if run.status != "running":
+        db.rollback()
+        return False
+    return True
 
 
 def _requeue(db: Session, task: Task, run: Run, resets_at: datetime) -> None:
-    """Quota/rate limit: park this task until the reset; other tasks keep flowing."""
-    db.rollback()
+    """Quota/rate limit: park this task until the reset; other tasks keep flowing.
+    Caller holds the ownership lock."""
+    if task.status != "running":  # cancelled meanwhile: keep that decision
+        _abandon(db, task, run, "task changed while running")
+        return
     run.status = "abandoned"
     task.retry_at = resets_at
     tasks.emit(
@@ -124,64 +132,59 @@ def _requeue(db: Session, task: Task, run: Run, resets_at: datetime) -> None:
     )
     tasks.set_role_status(db, task.assignee, "idle", task.id)
     db.flush()
-    try:
-        tasks.transition(db, task, "ready", actor=ACTOR)
-    except InvalidTransitionError:  # cancelled meanwhile: keep that decision
-        db.rollback()
-        run.status = "abandoned"
-        db.commit()
+    tasks.transition(db, task, "ready", actor=ACTOR)
 
 
 def _fail(db: Session, task: Task, run: Run, reason: str) -> None:
-    db.rollback()
+    """Caller holds the ownership lock."""
+    if task.status != "running":
+        _abandon(db, task, run, "task changed while running")
+        return
     run.status = "failed"
     tasks.emit(db, "run.failed", ACTOR, task_id=task.id, run_id=run.id, payload={"reason": reason})
     tasks.set_role_status(db, task.assignee, "idle", task.id)
     db.flush()
-    try:
-        tasks.transition(db, task, "failed_execution", actor=ACTOR)
-    except InvalidTransitionError:
-        db.rollback()
-        run.status = "failed"
-        db.commit()
+    tasks.transition(db, task, "failed_execution", actor=ACTOR)
 
 
 def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) -> None:
-    """Reply (echo, or one real model call), run the deterministic check, complete."""
-    output: dict[str, str] = {"echo": task.title}
-    if _superseded(db, run):
+    """Reply (echo, or one real model call for the CEO), run the check, complete.
+    Every outcome is written in one transaction under the ownership lock."""
+    if not _lock_owned(db, task, run):
         return
-    if gateway is not None:
+    db.rollback()  # never hold row locks across a model call
+    output: dict[str, str] = {"echo": task.title}
+    queued_until: datetime | None = None
+    failure: str | None = None
+    if gateway is not None and task.assignee == "ceo":
         try:
             output = live_reply(db, task, run, gateway)
         except Queued as q:
-            if _superseded(db, run):
-                return
-            _requeue(db, task, run, q.resets_at)
-            return
+            queued_until = q.resets_at
         except GatewayError as e:
-            if _superseded(db, run):
-                return
-            _fail(db, task, run, type(e).__name__)
-            return
-    if _superseded(db, run):
+            failure = type(e).__name__
+    if not _lock_owned(db, task, run):
+        return
+    if queued_until is not None:
+        _requeue(db, task, run, queued_until)
+        return
+    if failure is not None:
+        _fail(db, task, run, failure)
         return
     output = {k: redact_text(v) for k, v in output.items()}
     try:
         tasks.emit(db, "run.output", ACTOR, task_id=task.id, run_id=run.id, payload=dict(output))
-        tasks.transition(db, task, "verifying", actor=ACTOR)
-        check = {
-            "kind": "deterministic",
-            "check": "reply is non-empty",
-            "passed": bool(next(iter(output.values()))),
-        }
+        tasks.transition(db, task, "verifying", actor=ACTOR, commit=False)
+        passed = bool(next(iter(output.values())))
+        check = {"kind": "deterministic", "check": "reply is non-empty", "passed": passed}
         run.status, run.result = "succeeded", dict(output)
         tasks.transition(
             db,
             task,
-            "completed" if check["passed"] else "failed_qa",
+            "completed" if passed else "failed_qa",
             actor=ACTOR,
             check_record=check,
+            commit=False,
         )
     except InvalidTransitionError:
         _abandon(db, task, run, "task changed while running")
@@ -193,13 +196,17 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
 
 def reconcile(db: Session) -> int:
     """After a restart, a running/verifying task has no live worker: abandon its run, requeue."""
-    stuck = db.scalars(select(Task).where(Task.status.in_(("running", "verifying")))).all()
+    stuck = db.scalars(
+        select(Task)
+        .where(Task.status.in_(("running", "verifying")))
+        .with_for_update(skip_locked=True)
+    ).all()
     for task in stuck:
         for run in db.scalars(select(Run).where(Run.task_id == task.id, Run.status == "running")):
             run.status = "abandoned"
         tasks.emit(db, "run.abandoned", ACTOR, task_id=task.id, payload={"reason": "restart"})
         tasks.set_role_status(db, task.assignee, "idle", task.id)
-        tasks.transition(db, task, "ready", actor=ACTOR)
+        tasks.transition(db, task, "ready", actor=ACTOR, commit=False)
     # No worker survives a restart, so no run may stay `running` (e.g. a cancelled task's run).
     for run in db.scalars(select(Run).where(Run.status == "running")):
         run.status = "abandoned"
