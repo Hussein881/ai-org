@@ -406,3 +406,64 @@ def test_routine_roles_prefer_api_above_70_percent(env):
         gw.complete("qa", None, part("n"), None, "public", purpose="narrative").provider
         == "anthropic_api"
     )
+
+
+def test_secret_in_schema_is_refused_before_any_call(env):
+    build, provs, _ = env
+    schema = {"description": "sk-ant-" + "api03-PLANTED1234567890abcdef"}
+    with pytest.raises(DataClassRefused):
+        build().complete("ceo", None, part("x"), schema, "public", purpose="ack")
+    assert provs["claude_cli"].calls == []
+
+
+def test_hostile_provider_exception_never_reaches_logs(env, caplog):
+    build, provs, _ = env
+    provs["claude_cli"].script = [RuntimeError("leaky-internal-detail-42")]
+    with caplog.at_level(logging.DEBUG):
+        build().complete("ceo", None, part("x"), None, "public", purpose="ack")
+    assert "leaky-internal-detail-42" not in caplog.text
+
+
+def test_unsettled_spend_survives_month_rollover(env):
+    build, _, clock = env
+    gw = build()
+    clock.now = datetime(2026, 11, 30, 23, 59, tzinfo=UTC)
+    with Session(engine()) as s:
+        ledger.reserve(
+            s,
+            gw.policy,
+            "anthropic_api",
+            "claude-haiku-5-5",
+            "ceo",
+            "x",
+            None,
+            None,
+            clock.now,
+            "p",
+            1000,
+        )
+        limit = gw.policy.providers["anthropic_api"].limits[0]
+        later = datetime(2026, 12, 1, 0, 1, tzinfo=UTC)
+        assert ledger.window_usage(s, "anthropic_api", limit, later, gw.policy).used > 0
+
+
+@pytest.mark.parametrize(
+    ("stdout", "active"),
+    [
+        ("inactive\n", False),
+        ("failed\n", False),
+        ("active\n", True),
+        ("activating\n", True),
+        ("", True),
+        ("weird\n", True),
+    ],
+)
+def test_build_probe_only_permits_explicitly_stopped_states(monkeypatch, stdout, active):
+    import subprocess
+
+    from app.gateway import router
+
+    monkeypatch.setattr(
+        router.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout, "")
+    )
+    assert router.systemctl_build_active() is active

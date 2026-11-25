@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.tasks import emit
@@ -15,6 +15,7 @@ from app.gateway.redact import redact_json
 from app.policy.model_policy import Limit, ModelPolicy, ProviderPolicy
 
 STALE_AFTER = timedelta(minutes=15)
+REQUEST_OVERHEAD_TOKENS = 256
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,10 @@ def window_usage(
 ) -> WindowUsage:
     """Shared by the router and /api/usage. Membership is by reserved_at (in-flight calls count)."""
     start = _window_start(limit, now, policy.day_tz)
-    q = [ModelUsage.provider == provider, ModelUsage.reserved_at >= start]
+    member = ModelUsage.reserved_at >= start
+    if limit.max_usd is not None:  # unsettled spend carries over a window rollover
+        member = or_(member, ModelUsage.outcome == "reserved")
+    q = [ModelUsage.provider == provider, member]
     if limit.model:
         q.append(ModelUsage.model == limit.model)
     oldest = db.scalar(select(func.min(ModelUsage.reserved_at)).where(*q))
@@ -87,7 +91,9 @@ def upper_bound_cost(
     info = pp.models[model]
     if pp.pricing_basis != "api" or info.price_in is None or info.price_out is None:
         return None
-    in_tokens = len(prompt.encode())  # bytes >= tokens for any tokenizer: a safe upper bound
+    in_tokens = (
+        len(prompt.encode()) + REQUEST_OVERHEAD_TOKENS
+    )  # bytes >= tokens for any tokenizer: a safe upper bound
     return (
         Decimal(str(info.price_in)) * in_tokens + Decimal(str(info.price_out)) * max_output_tokens
     ) / Decimal(1_000_000)

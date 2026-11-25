@@ -1,5 +1,6 @@
 """The gateway: route -> data_class -> quota envelope -> fallback chain -> queue until reset."""
 
+import json
 import logging
 import subprocess
 import time
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.gateway import ledger
 from app.gateway.assemble import assemble
 from app.gateway.providers.base import Provider
-from app.gateway.redact import redact_text
+from app.gateway.redact import redact, redact_text
 from app.gateway.types import (
     AllRoutesFailed,
     Clock,
@@ -57,7 +58,7 @@ def systemctl_build_active() -> bool:
         )
     except (OSError, subprocess.TimeoutExpired):
         return True
-    return out.stdout.strip() in ("active", "activating", "reloading")
+    return out.stdout.strip() not in ("inactive", "failed")
 
 
 class Gateway:
@@ -132,6 +133,8 @@ class Gateway:
             if p.data_class != "secret":
                 effective = max_class(effective, p.data_class)
         prompt = redact_text(assemble(parts, budget_hint or self.policy.cap_for(role)))
+        if schema is not None and redact(json.dumps(schema))[1]:
+            raise DataClassRefused("schema contains secret-looking content")
         ref = task_ref or TaskRef()
         refused = skipped = 0
         resets: list[datetime] = []
@@ -242,8 +245,8 @@ class Gateway:
         except GatewayError:
             done(outcome="error", error_kind="gateway_error")
             return "failed", None
-        except Exception:  # never let a provider bug leak raw details
-            log.exception("provider crashed")
+        except Exception as e:  # never let a provider bug leak raw details
+            log.error("provider %s crashed: %s", provider, type(e).__name__)
             done(outcome="error", error_kind="provider_crash")
             return "failed", None
         cost: Decimal | None = None

@@ -30,13 +30,9 @@ services:
       AIORG_SESSION_SECRET: ${AIORG_SESSION_SECRET:?set AIORG_SESSION_SECRET in .env}
       AIORG_FOUNDER_EMAIL: ${AIORG_FOUNDER_EMAIL:-founder@localhost}
       AIORG_FOUNDER_PASSWORD_HASH: ${AIORG_FOUNDER_PASSWORD_HASH:-}
-<<<<<<< slice/S03-gateway
-      AIORG_COOKIE_SECURE: ${AIORG_COOKIE_SECURE:-false}
-=======
       AIORG_COOKIE_SECURE: ${AIORG_COOKIE_SECURE:-false}  # plain http over the tailnet (founder-accepted)
       AIORG_GATEWAY_MODE: fake   # pinned: the container has no CLIs or provider keys
       AIORG_WORKER_ENABLED: ${AIORG_WORKER_ENABLED:-true}
->>>>>>> local
     ports:
       - "${AIORG_BIND_IP:?set AIORG_BIND_IP to the Tailscale IP}:${AIORG_API_PORT:-8000}:8000"
     healthcheck:

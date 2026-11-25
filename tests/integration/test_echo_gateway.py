@@ -150,3 +150,34 @@ def test_usage_api_and_role_detail(client):
     d = client.get("/api/roles/ceo").json()
     assert d["calls_today"] == 1 and d["route"] == "codex_cli / default"
     assert token  # session still valid
+
+
+def test_superseded_run_cannot_complete_the_task(client):
+    tid = new_task(client)
+    g, provs = gw()
+
+    def restart_during_call(req):
+        with Session(engine()) as other:
+            echo.reconcile(other)  # another process takes the task back
+        return ProviderResponse("late reply", 1, 1)
+
+    provs["claude_cli"].script = [restart_during_call]
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        echo.finish(s, task, run, g)
+    d = client.get(f"/api/tasks/{tid}").json()
+    assert d["status"] == "ready"
+    assert not any(e["kind"] == "run.output" for e in d["events"])
+
+
+def test_stored_outputs_are_redacted(client):
+    planted = "sk-ant-" + "api03-PLANTED1234567890abcdef"
+    tid = new_task(client, f"use {planted} now")
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        echo.finish(s, task, run)
+    with Session(engine()) as s:
+        blob = str(s.execute(text("select result from runs")).all())
+        blob += str(s.execute(text("select payload from events where kind='run.output'")).all())
+    assert planted not in blob
+    assert client.get(f"/api/tasks/{tid}").json()["status"] == "completed"

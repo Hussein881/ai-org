@@ -62,6 +62,6 @@ def env_is_clean() -> bool:
     """Run scripts/check-env-clean.sh under the scrubbed environment (launch-path guard)."""
     script = Path(__file__).resolve().parents[2] / "scripts" / "check-env-clean.sh"
     if not script.exists():
-        return True  # container image: the scrub itself is the guard
+        return False  # fail closed: live CLI calls need the guard script
     code, out, _ = run_cli(["bash", str(script)], "", 10)
     return code == 0 and out.strip() == "ENV_CLEAN"

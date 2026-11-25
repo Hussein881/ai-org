@@ -13,6 +13,7 @@ from app.core import tasks
 from app.core.state import InvalidTransitionError
 from app.db.models import Role, RoleVersion, Run, Task
 from app.db.session import engine
+from app.gateway.redact import redact_text
 from app.gateway.router import Gateway, TaskRef
 from app.gateway.types import GatewayError, PromptPart, Queued, utcnow
 
@@ -101,6 +102,13 @@ def live_reply(db: Session, task: Task, run: Run, gateway: Gateway) -> dict[str,
     return {"reply": line, "provider": res.provider, "model": res.model, "source": "model"}
 
 
+def _superseded(db: Session, run: Run) -> bool:
+    """Fence: if a restart/another worker took this run away, this attempt must not write."""
+    db.rollback()
+    db.refresh(run)
+    return run.status != "running"
+
+
 def _requeue(db: Session, task: Task, run: Run, resets_at: datetime) -> None:
     """Quota/rate limit: park this task until the reset; other tasks keep flowing."""
     db.rollback()
@@ -141,15 +149,24 @@ def _fail(db: Session, task: Task, run: Run, reason: str) -> None:
 def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) -> None:
     """Reply (echo, or one real model call), run the deterministic check, complete."""
     output: dict[str, str] = {"echo": task.title}
+    if _superseded(db, run):
+        return
     if gateway is not None:
         try:
             output = live_reply(db, task, run, gateway)
         except Queued as q:
+            if _superseded(db, run):
+                return
             _requeue(db, task, run, q.resets_at)
             return
         except GatewayError as e:
+            if _superseded(db, run):
+                return
             _fail(db, task, run, type(e).__name__)
             return
+    if _superseded(db, run):
+        return
+    output = {k: redact_text(v) for k, v in output.items()}
     try:
         tasks.emit(db, "run.output", ACTOR, task_id=task.id, run_id=run.id, payload=dict(output))
         tasks.transition(db, task, "verifying", actor=ACTOR)
