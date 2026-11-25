@@ -199,3 +199,15 @@ def test_failed_ack_makes_no_second_or_paid_call(client):
         echo.finish(s, task, run, g)
     assert client.get(f"/api/tasks/{tid}").json()["status"] == "failed_execution"
     assert len(provs["claude_cli"].calls) == 1 and provs["anthropic_api"].calls == []
+
+
+def test_task_cancelled_before_dispatch_is_never_sent_to_a_model(client):
+    tid = new_task(client)
+    g, provs = gw()
+    h = _csrf(client)
+    with Session(engine()) as s:
+        task, run = echo.claim_one(s)
+        client.post(f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h)
+        echo.finish(s, task, run, g)
+    assert provs["claude_cli"].calls == []
+    assert client.get("/api/roles/ceo").json()["status"] == "idle"

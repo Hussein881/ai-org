@@ -66,7 +66,7 @@ Skills: K9 K10 K11 K12 K13 K14 K15 K16 · review K2 K20 · finish K18  (IDs in S
 ---
 ## Phase B: Runs by itself
 
-### S03: Model gateway, usage ledger, fuel gauges `[ ]`
+### S03: Model gateway, usage ledger, fuel gauges `[~]` (open HIGH closes with S04; see slice record)
 Tier **T2** · Plan `opus` (written), implement `sonnet` · Review `codex` + adversarial tests · Depends S02
 Founder gate: G3
 Read: ARCH §Gateway §Security, `docs/PROVIDERS.md` (all), `docs/MODEL_POLICY.md Part B`

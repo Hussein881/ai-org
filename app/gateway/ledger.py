@@ -120,6 +120,7 @@ def reserve(
 ) -> str | Blocked:
     """Check block + limits and insert a `reserved` row in one transaction under a row lock."""
     pp = policy.providers[provider]
+    reconcile_stale(db, now)
     quota = db.scalar(
         select(ProviderQuota).where(ProviderQuota.provider == provider).with_for_update()
     )
@@ -248,6 +249,11 @@ def reconcile_stale(db: Session, now: datetime) -> int:
         )
     ).all()
     for r in rows:
-        r.outcome, r.finished_at, r.error_kind = "abandoned", now, "stale_reservation"
+        # the charge stays in the window where the call was made, not where it was swept
+        r.outcome, r.finished_at, r.error_kind = (
+            "abandoned",
+            r.reserved_at + STALE_AFTER,
+            "stale_reservation",
+        )
     db.commit()
     return len(rows)

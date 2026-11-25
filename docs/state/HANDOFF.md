@@ -2,17 +2,17 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S03 (not started; run by hand, runner stays stopped). S00, S01, S02 are on main (S01/S02 reviews partial)
-- Phase: A done (tag phase-a-done) -> Phase B
-- Branch: main
+- Active slice: S04 (not started). S03 is `[~]` on slice/S03-gateway, NOT merged; branch S04 from it
+- Phase: B
+- Branch: slice/S03-gateway. WARNING: check `git branch --show-current` before every commit (unexplained checkouts seen twice)
 
 ## Last session
-- Ended with: S02 merged; stack running via docker compose (api+postgres healthy). Records: docs/state/slices/S01.md, S02.md
-- Did: tasks + state machine, SSE, echo worker, Tasks board, live org chart; 43 pytest + 9 Playwright pass; Codex review FAIL x3 with fixes, 2 accepted SSE edge cases
-- Mistake fixed: S02 commits had landed on slice/S01-walking-skeleton; merged to main afterwards and tag moved
-- Cookie: plain http over the tailnet accepted (AIORG_COOKIE_SECURE=false); HTTPS/tailscale serve not needed
-- e2e needs LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu (Chromium libs extracted without root)
-- Founder should change the password: `uv run python -m app.cli set-password` in a real terminal, then `docker compose up -d`
+- Ended with: CONTINUE (checkpoint). S03 built and live-verified; see docs/state/slices/S03.md
+- Did: gateway, ledger, quotas, 5 live providers verified, fuel gauges; 139 pytest, 13 Playwright
+- Remaining: S04 host worker closes S03's open HIGH; then run /code-review, pr-review-toolkit, differential-review + Codex on S03+S04; merge
+- e2e: `docker compose -p aiorg-e2e --env-file <own env> up` with AIORG_BIND_IP=127.0.0.1, AIORG_API_PORT=8001, AIORG_PG_PORT=55434; LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu. Test DB: postgres:17-alpine on 127.0.0.1:55433, AIORG_TEST_DATABASE_URL
+- Gates: S05 needs G4 (constitution), still unanswered
+- S04 reboot test needs a human watching: it ends the session
 
 ## Facts the next session needs (not derivable from code in 1 minute)
 - Root setup is done by `scripts/bootstrap/root-setup.sh` (founder runs it with sudo). Claude never uses sudo.

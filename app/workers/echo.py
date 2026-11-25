@@ -152,6 +152,9 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
     Every outcome is written in one transaction under the ownership lock."""
     if not _lock_owned(db, task, run):
         return
+    if task.status != "running":  # cancelled before dispatch: send nothing to any model
+        _abandon(db, task, run, "task changed before the call")
+        return
     db.rollback()  # never hold row locks across a model call
     output: dict[str, str] = {"echo": task.title}
     queued_until: datetime | None = None

@@ -57,15 +57,19 @@ class ClaudeCli:
         if not env_is_clean():
             raise ProviderError("env_not_clean")
         code, out, err = run_cli(self.argv(req), req.prompt, req.timeout_s)
-        if _LIMIT_TEXT.search(out[:2000]) or (code != 0 and _LIMIT_TEXT.search(err[:2000])):
-            raise RateLimited(None)
+        failed_diag = code != 0 and _LIMIT_TEXT.search(out[:2000] + err[:2000])
         try:
             data = json.loads(out)
         except json.JSONDecodeError:
+            if failed_diag:
+                raise RateLimited(None) from None
             raise MalformedOutput() from None
         if not isinstance(data, dict):
             raise MalformedOutput()
-        if data.get("is_error"):
+        # limit wording only counts in errors: a normal reply may talk about "rate limits"
+        if data.get("is_error") or code != 0:
+            if failed_diag or _LIMIT_TEXT.search(str(data.get("result", ""))[:2000]):
+                raise RateLimited(None)
             raise ProviderError("cli_error")
         text = data.get("result")
         if code != 0 or not isinstance(text, str) or not text.strip():

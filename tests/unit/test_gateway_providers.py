@@ -215,3 +215,10 @@ def test_openai_is_disabled():
     assert OpenAiApi().available() is False
     with pytest.raises(ProviderDisabled):
         OpenAiApi().call(REQ)
+
+
+def test_successful_reply_mentioning_rate_limits_is_not_a_rate_limit(tmp_path, monkeypatch):
+    fake_cli(
+        tmp_path, monkeypatch, "claude", json.dumps({"result": "I will watch the rate limit."})
+    )
+    assert ClaudeCli().call(REQ).text.startswith("I will watch")
