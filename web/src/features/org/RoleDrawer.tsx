@@ -32,6 +32,10 @@ export function RoleDrawer({ slug, onClose }: { slug: string | null; onClose: ()
                 </dd>
                 <dt className="text-muted-foreground">Model</dt>
                 <dd>{q.data.model} · {q.data.provider}</dd>
+                <dt className="text-muted-foreground">Route</dt>
+                <dd>{q.data.route}</dd>
+                <dt className="text-muted-foreground">Calls today</dt>
+                <dd>{q.data.calls_today}</dd>
                 <dt className="text-muted-foreground">Reports to</dt>
                 <dd>{q.data.reports_to}</dd>
                 <dt className="text-muted-foreground">Department</dt>

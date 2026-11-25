@@ -2,12 +2,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.auth import current_session
-from app.db.models import Role, RoleVersion
+from app.config import get_settings
+from app.db.models import ModelUsage, Role, RoleVersion
 from app.db.session import get_db
+from app.gateway.types import utcnow
+from app.policy.model_policy import cached_policy
 
 router = APIRouter(prefix="/api/roles", tags=["roles"], dependencies=[Depends(current_session)])
 
@@ -24,6 +27,8 @@ class RoleOut(BaseModel):
 
 
 class RoleDetail(RoleOut):
+    route: str
+    calls_today: int
     summary: str
     responsibilities: list[str]
 
@@ -62,7 +67,22 @@ def get_role(slug: str, db: Session = Depends(get_db)) -> RoleDetail:
     if role is None:
         raise HTTPException(404, "Role not found")
     card = _card(db, role)
+    policy = cached_policy(get_settings().model_policy_path)
+    try:
+        prov, model = policy.route_for(slug)[0]
+        route = f"{prov} / {model}"
+    except KeyError:
+        route = "no route"
+    now = utcnow()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)  # day_tz is UTC by default
+    calls = db.scalar(
+        select(func.count())
+        .select_from(ModelUsage)
+        .where(ModelUsage.role == slug, ModelUsage.reserved_at >= day_start)
+    )
     return RoleDetail(
+        route=route,
+        calls_today=int(calls or 0),
         **_out(db, role).model_dump(),
         summary=card.get("summary", ""),
         responsibilities=card.get("responsibilities", []),

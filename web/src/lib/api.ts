@@ -5,6 +5,8 @@ export type RoleDetail = components['schemas']['RoleDetail']
 export type Task = components['schemas']['TaskOut']
 export type TaskDetail = components['schemas']['TaskDetail']
 export type OrgEvent = components['schemas']['EventOut']
+export type UsageOut = components['schemas']['UsageOut']
+export type ProviderGauge = components['schemas']['ProviderGauge']
 export type Session = components['schemas']['SessionOut']
 
 export class ApiError extends Error {
@@ -54,5 +56,6 @@ export const api = {
   transition: (id: string, to: string) =>
     request<Task>(`/api/tasks/${encodeURIComponent(id)}/transition`, { method: 'POST', body: JSON.stringify({ to }) }),
   events: () => request<OrgEvent[]>('/api/events?limit=30'),
+  usage: () => request<UsageOut>('/api/usage'),
   role: (slug: string) => request<RoleDetail>(`/api/roles/${encodeURIComponent(slug)}`),
 }

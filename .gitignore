@@ -29,3 +29,4 @@ web/dist
 .venv
 __pycache__
 *.pyc
+var/

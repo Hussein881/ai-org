@@ -23,6 +23,10 @@ export function useLiveEvents() {
     es.addEventListener('aiorg', (m) => {
       const e = JSON.parse((m as MessageEvent<string>).data) as OrgEvent
       setTicker((t) => [...t.slice(-29), e])
+      if (e.kind === 'usage.recorded') {
+        void qc.invalidateQueries({ queryKey: ['usage'] })
+        void qc.invalidateQueries({ queryKey: ['role'] })
+      }
       if (e.kind === 'role.status') void qc.invalidateQueries({ queryKey: ['roles'] })
       if (e.kind.startsWith('task.') || e.kind.startsWith('run.')) {
         void qc.invalidateQueries({ queryKey: ['tasks'] })

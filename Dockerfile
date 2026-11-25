@@ -26,6 +26,7 @@ COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY roles ./roles
+COPY config/model_policy.yaml ./config/model_policy.yaml
 COPY --from=web /web/dist ./web/dist
 RUN useradd --system --uid 10001 aiorg && chown -R aiorg /srv/app
 USER aiorg

@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -9,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -87,6 +89,7 @@ class Task(_Row, Base):
     actor: Mapped[str] = mapped_column(String(64))
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
     check_record: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -108,3 +111,35 @@ class AuditLog(_Row, Base):
     action: Mapped[str] = mapped_column(String(64))
     task_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     detail: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ModelUsage(_Row, Base):
+    """One gateway call. Token counts and cost stay NULL when the provider did not report them."""
+
+    __tablename__ = "model_usage"
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(64))
+    role: Mapped[str] = mapped_column(String(64))
+    purpose: Mapped[str] = mapped_column(String(32), default="default")
+    task_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16), default="reserved")
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    reserved_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    pricing_basis: Mapped[str] = mapped_column(String(16))
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_kind: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ProviderQuota(_Row, Base):
+    __tablename__ = "provider_quota"
+    provider: Mapped[str] = mapped_column(String(32), unique=True)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_rate_limit_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

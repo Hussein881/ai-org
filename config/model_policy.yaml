@@ -1,0 +1,79 @@
+# Founder-tunable model policy (G3 = ACCEPT-DEFAULTS, MODEL_POLICY Part B).
+# The gateway also enforces a hard-coded floor this file cannot widen:
+# gemini_api/openrouter_free accept `public` only; `secret` is never sent anywhere.
+day_tz: UTC
+unknown_call_usd: 0.05      # counted against API caps for calls with unknown cost
+prefer_api_above_pct: 70    # routine Claude roles prefer anthropic_api haiku above this claude_cli usage
+prefer_api_roles: [engineering-director, chief-of-staff.chat, qa.narrative]
+providers:
+  fake:
+    enabled: true
+    pricing_basis: free
+    allowed_data_classes: [public, founder_private]
+    limits: []
+    models: {fake: {id: fake}}
+  claude_cli:
+    enabled: true
+    pricing_basis: subscription
+    allowed_data_classes: [public, founder_private]
+    limits:
+      - {window: day, max_calls: 80}
+      - {window: 5h, max_calls: 20}
+      - {window: day, max_calls: 20, model: opus}
+    models: {haiku: {id: haiku}, sonnet: {id: sonnet}, opus: {id: opus}}
+  codex_cli:
+    enabled: true
+    pricing_basis: subscription
+    allowed_data_classes: [public, founder_private]
+    limits:
+      - {window: day, max_calls: 12}
+    models: {default: {id: default}}
+  anthropic_api:
+    enabled: true
+    pricing_basis: api
+    allowed_data_classes: [public, founder_private]
+    limits:
+      - {window: month, max_usd: 30.0, hard: true}
+      - {window: day, max_usd: 1.0, hard: false}
+    models:
+      claude-haiku-5-5: {id: claude-haiku-5-5, price_in: 0.10, price_out: 0.50}
+      claude-sonnet-5-5: {id: claude-sonnet-5-5, price_in: 2.0, price_out: 10.0}
+      claude-opus-5-5: {id: claude-opus-5-5, price_in: 4.0, price_out: 20.0}
+  gemini_api:
+    enabled: true
+    pricing_basis: free
+    allowed_data_classes: [public]
+    limits:
+      - {window: day, max_calls: 20}
+    models:
+      flash-lite: {id: gemini-flash-lite-latest}
+      flash: {id: gemini-flash-latest}
+  openrouter_free:
+    enabled: true
+    pricing_basis: free
+    allowed_data_classes: [public]
+    limits:
+      - {window: day, max_calls: 50}
+    models: {free: {id: "openrouter/free"}}
+  openai_api:
+    enabled: false          # disabled by policy (D-027); present for completeness
+    pricing_basis: api
+    allowed_data_classes: [public, founder_private]
+    limits: []
+    models: {default: {id: default, price_in: 0, price_out: 0}}
+routes:
+  ceo: [codex_cli:default, claude_cli:opus, openai_api:default]
+  ceo.ack: [claude_cli:haiku, anthropic_api:claude-haiku-5-5]
+  board-advisor: [claude_cli:opus, claude_cli:sonnet, anthropic_api:claude-opus-5-5]
+  chief-of-staff: [claude_cli:sonnet, anthropic_api:claude-sonnet-5-5]
+  chief-of-staff.chat: [anthropic_api:claude-sonnet-5-5, claude_cli:sonnet]
+  engineering-director: [anthropic_api:claude-sonnet-5-5, claude_cli:sonnet]
+  coding-workers: [claude_cli:sonnet, claude_cli:opus]
+  qa: [codex_cli:default, claude_cli:opus]
+  qa.narrative: [claude_cli:haiku, anthropic_api:claude-haiku-5-5]
+  efficiency-assurance: [claude_cli:haiku, claude_cli:sonnet]
+  news-scout: [anthropic_api:claude-haiku-5-5, gemini_api:flash, openrouter_free:free]
+  smoke: [fake:fake]
+prompt_caps:
+  default: 30000
+  chief-of-staff: 60000

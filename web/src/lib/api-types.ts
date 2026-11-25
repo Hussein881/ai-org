@@ -195,6 +195,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage */
+        get: operations["usage_api_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -224,6 +241,23 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** LimitGauge */
+        LimitGauge: {
+            /** Hard */
+            hard: boolean;
+            /** Limit */
+            limit: number;
+            /** Model */
+            model: string | null;
+            /** Resets At */
+            resets_at: string | null;
+            /** Unit */
+            unit: string;
+            /** Used */
+            used: number;
+            /** Window */
+            window: string;
+        };
         /** LoginIn */
         LoginIn: {
             /** Email */
@@ -231,8 +265,27 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ProviderGauge */
+        ProviderGauge: {
+            /** Blocked Until */
+            blocked_until: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Label */
+            label: string;
+            /** Limits */
+            limits: components["schemas"]["LimitGauge"][];
+            /** Pricing Basis */
+            pricing_basis: string;
+            /** Provider */
+            provider: string;
+            /** Status */
+            status: string;
+        };
         /** RoleDetail */
         RoleDetail: {
+            /** Calls Today */
+            calls_today: number;
             /** Department */
             department: string;
             /** Model */
@@ -245,6 +298,8 @@ export interface components {
             reports_to: string;
             /** Responsibilities */
             responsibilities: string[];
+            /** Route */
+            route: string;
             /** Slug */
             slug: string;
             /** Status */
@@ -351,6 +406,11 @@ export interface components {
         TransitionIn: {
             /** To */
             to: string;
+        };
+        /** UsageOut */
+        UsageOut: {
+            /** Providers */
+            providers: components["schemas"]["ProviderGauge"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -684,6 +744,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_api_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageOut"];
                 };
             };
         };
