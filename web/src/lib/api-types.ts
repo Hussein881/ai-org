@@ -480,6 +480,8 @@ export interface components {
             events: components["schemas"]["EventOut"][];
             /** Id */
             id: string;
+            /** Retry At */
+            retry_at?: string | null;
             /** Status */
             status: string;
             /** Status Reason */
@@ -520,6 +522,8 @@ export interface components {
             description: string;
             /** Id */
             id: string;
+            /** Retry At */
+            retry_at?: string | null;
             /** Status */
             status: string;
             /** Status Reason */

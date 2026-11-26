@@ -26,6 +26,7 @@ describe('WorkerControls', () => {
     expect(workerState({ ...alive, worker_alive: false }, false).label).toBe('Worker offline')
     expect(workerState({ ...alive, stopped: true }, false).label).toBe('Work stopped')
     expect(workerState(undefined, true).label).toBe('Worker unknown')
+    expect(workerState(alive, false).dot).toBe('bg-status-ok') // a theme token, not a raw palette class
   })
 
   it('only stops after the dialog is confirmed, then offers resume', async () => {

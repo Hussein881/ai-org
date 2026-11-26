@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
+import { taskNote } from './note'
 import { statusLabel } from './TasksPage'
 
 export function TaskDetailPage() {
@@ -25,6 +26,7 @@ export function TaskDetailPage() {
             <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
               <Badge>{statusLabel(q.data.status)}</Badge> assigned to {q.data.assignee}
             </p>
+            {taskNote(q.data) && <p className="mt-1 text-sm text-muted-foreground">{taskNote(q.data)}</p>}
             {q.data.description && <p className="mt-2 text-sm">{q.data.description}</p>}
           </div>
           <section aria-label="Timeline">
