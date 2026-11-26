@@ -29,6 +29,13 @@ def children(pid):
     return out
 
 
+def ignores_sigterm(pid):
+    for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+        if line.startswith("SigIgn:"):
+            return bool(int(line.split()[1], 16) & (1 << (signal.SIGTERM - 1)))
+    return False
+
+
 class Worker:
     def __init__(self, url, log: Path, **overrides):
         env = {
@@ -197,6 +204,7 @@ def test_stop_with_a_child_ignoring_sigterm_and_the_real_30s_grace(start):
     first, second = add("stubborn"), add("c")
     worker = start(fake_delay_s=120, fake_ignore_term=1, stop_grace_s=30, agent_concurrency=1)
     kids = wait_for(lambda: children(worker.proc.pid), what="CLI child")
+    wait_for(lambda: ignores_sigterm(kids[0]), what="the child's TERM trap")
     began = time.monotonic()
     with Session(engine()) as s:
         control.request_stop(s, "founder", "stubborn")

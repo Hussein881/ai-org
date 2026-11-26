@@ -395,3 +395,13 @@ def test_losing_the_executor_lock_is_noticed_by_its_own_thread():
     holding[0] = False
     assert lost.wait(2)
     guard.set()
+
+
+def test_a_job_accepted_just_before_shutdown_claims_nothing(client):
+    tid = new_task(client)
+    registry = ProcRegistry()
+    sup, _ = supervisor(registry=registry)
+    registry.close(1)
+    sup.work(tid)
+    assert status_of(tid)[0] == "ready"
+    assert sql("select count(*) from runs")[0][0] == 0

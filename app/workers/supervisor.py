@@ -85,6 +85,8 @@ class Supervisor:
             self.active.pop(task_id, None)
 
     def work(self, task_id: str) -> None:
+        if self.registry.halted():  # stop or shutdown arrived after the job was accepted
+            return
         with Session(self.engine) as db:
             claimed = echo.claim_one(db, task_id=task_id, epoch=self.epoch)
             if claimed is None:

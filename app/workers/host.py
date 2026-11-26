@@ -83,6 +83,7 @@ async def serve(lock: ExecutorLock) -> int:
 
     def lock_lost() -> None:
         # another executor may take over now: die at once; systemd kills our whole cgroup
+        REGISTRY.close(0)  # first: nothing may be claimed, sent or spawned from here on
         log.error("executor lock lost: exiting")
         logging.shutdown()
         os._exit(1)
