@@ -24,7 +24,8 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('button', { name: 'Fuel', exact: true })).toBeVisible()
     } else {
       const group = page.getByRole('group', { name: 'Fuel gauges' })
-      await expect(group.getByRole('button', { name: /Claude subscription: \d+ of 80 calls today/ })).toBeVisible()
+      // the pill shows whichever policy limit is busiest, which depends on today's traffic
+      await expect(group.getByRole('button', { name: /Claude subscription: \d+ of (80 calls today|20 calls per 5 hours)/ })).toBeVisible()
       await expect(group.getByRole('button', { name: /Claude API: \$[\d.]+ of \$30\.00 this month/ })).toBeVisible()
       await expect(group.getByRole('button', { name: /Codex/ })).toBeVisible()
       await expect(group.getByRole('button', { name: /Gemini/ })).toBeVisible()

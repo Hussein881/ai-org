@@ -6,6 +6,7 @@ import { LoginPage } from './LoginPage'
 import { TaskDetailPage } from '@/features/tasks/TaskDetailPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { OrgPage } from '@/features/org/OrgPage'
+import { DeadLetterPage } from '@/features/admin/DeadLetterPage'
 
 const root = createRootRouteWithContext<{ queryClient: QueryClient }>()()
 
@@ -30,7 +31,9 @@ const home = createRoute({ getParentRoute: () => shell, path: '/', component: Or
 const tasks = createRoute({ getParentRoute: () => shell, path: '/tasks', component: TasksPage })
 const taskDetail = createRoute({ getParentRoute: () => shell, path: '/tasks/$taskId', component: TaskDetailPage })
 
-const routeTree = root.addChildren([login, shell.addChildren([home, tasks, taskDetail])])
+const failedTasks = createRoute({ getParentRoute: () => shell, path: '/failed', component: DeadLetterPage })
+
+const routeTree = root.addChildren([login, shell.addChildren([home, tasks, taskDetail, failedTasks])])
 export const router = createRouter({ routeTree, context: { queryClient: undefined! } })
 
 declare module '@tanstack/react-router' {

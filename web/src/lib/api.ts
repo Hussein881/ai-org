@@ -8,6 +8,8 @@ export type OrgEvent = components['schemas']['EventOut']
 export type UsageOut = components['schemas']['UsageOut']
 export type ProviderGauge = components['schemas']['ProviderGauge']
 export type Session = components['schemas']['SessionOut']
+export type AdminStatus = components['schemas']['AdminStatus']
+export type DeadLetter = components['schemas']['DeadLetter']
 
 export class ApiError extends Error {
   status: number
@@ -57,5 +59,11 @@ export const api = {
     request<Task>(`/api/tasks/${encodeURIComponent(id)}/transition`, { method: 'POST', body: JSON.stringify({ to }) }),
   events: () => request<OrgEvent[]>('/api/events?limit=30'),
   usage: () => request<UsageOut>('/api/usage'),
+  adminStatus: () => request<AdminStatus>('/api/admin/status'),
+  stop: (reason: string) => request<AdminStatus>('/api/admin/stop', { method: 'POST', body: JSON.stringify({ reason }) }),
+  resume: () => request<AdminStatus>('/api/admin/resume', { method: 'POST' }),
+  deadLetter: () => request<DeadLetter[]>('/api/admin/dead-letter'),
+  retryDeadLetter: (id: string) =>
+    request<void>(`/api/admin/dead-letter/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   role: (slug: string) => request<RoleDetail>(`/api/roles/${encodeURIComponent(slug)}`),
 }

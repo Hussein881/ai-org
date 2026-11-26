@@ -27,6 +27,11 @@ export function useLiveEvents() {
         void qc.invalidateQueries({ queryKey: ['usage'] })
         void qc.invalidateQueries({ queryKey: ['role'] })
       }
+      if (e.kind.startsWith('control.')) void qc.invalidateQueries({ queryKey: ['admin'] })
+      if (e.kind === 'task.status') {
+        void qc.invalidateQueries({ queryKey: ['dead-letter'] })
+        void qc.invalidateQueries({ queryKey: ['admin'] })
+      }
       if (e.kind === 'role.status') void qc.invalidateQueries({ queryKey: ['roles'] })
       if (e.kind.startsWith('task.') || e.kind.startsWith('run.')) {
         void qc.invalidateQueries({ queryKey: ['tasks'] })
