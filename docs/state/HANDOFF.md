@@ -6,21 +6,15 @@
 - The live worker (aiorg-worker.service) runs from this working tree. Leave it on slice/S04-worker
 
 ## Last session
-- Ended with: NEEDS_FOUNDER S04 (root step + reboot test). Details: docs/state/slices/S04.md
+- Ended with: CONTINUE S04 (reboot verified; reviews and 2 open items remain). Details: docs/state/slices/S04.md
 - Done and live-verified: durable worker, kill -9 resume, emergency stop, queue across restart, dashboard
 - Found: test_build_runner.py was switching branches in this repo (fixed)
 
-## S04 reboot test pending: verify after boot
-1. Founder first (root): `sudo systemctl enable aiorg-worker.service` (it is disabled at boot)
-2. Optional: create a task, run `scripts/aiorgctl stop` first to hold a queued one, then `sudo reboot`
-3. After boot: `systemctl is-active aiorg-worker`; `scripts/aiorgctl status` (fresh heartbeat);
-   `docker compose ps` healthy; dashboard shows "Worker alive" (or "Work stopped" if stopped before);
-   queued task still `ready`; no task became `completed` without a run.output event
-- No settings change is needed: the founder reboots, so Claude does not need the reboot allow entry
-- build-runner is disabled at boot and must stay so (not approved; no session auto-resumes)
+## S04 reboot test: run 2026-11-26, passed (gaps in slices/S04.md: no task was queued at reboot)
+- aiorg-worker is now enabled at boot. build-runner is disabled and must stay so (not approved)
 
 ## Remaining for S03 + S04 to reach `[x]`
-- Reboot test; Codex's 2 open items (slices/S04.md); run /code-review, pr-review-toolkit, differential-review
+- Codex's 2 open items (slices/S04.md); run /code-review, pr-review-toolkit, differential-review
 - Then merge to main, tag phase-b-done, Notion milestone page
 
 ## Facts the next session needs
