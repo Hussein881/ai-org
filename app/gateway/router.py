@@ -122,6 +122,7 @@ class Gateway:
         allow_during_build: bool = False,
         max_output_tokens: int = 1024,
         timeout_s: float = 120.0,
+        cancelled: Callable[[], bool] = lambda: False,
     ) -> Result:
         declared = check_class(data_class)
         if declared == "secret":
@@ -148,7 +149,7 @@ class Gateway:
             now = self.clock()
             candidates = self._candidates(role, purpose, db, now)
         for provider, model in candidates:
-            if self.halted():
+            if self.halted() or cancelled():
                 raise Halted(sent=bool(failures))
             pp = self.policy.providers[provider]
             prov = self.providers.get(provider)
@@ -172,6 +173,7 @@ class Gateway:
                 schema,
                 max_output_tokens,
                 timeout_s,
+                cancelled,
             )
             if isinstance(outcome, Result):
                 return outcome
@@ -203,6 +205,7 @@ class Gateway:
         schema: dict[str, Any] | None,
         max_out: int,
         timeout_s: float,
+        cancelled: Callable[[], bool],
     ) -> Result | tuple[str, datetime | None]:
         pp = self.policy.providers[provider]
         info = pp.models[model]
@@ -236,7 +239,7 @@ class Gateway:
                     **kw,
                 )
 
-        if self.halted():  # last gate before anything leaves this machine
+        if self.halted() or cancelled():  # last gate before anything leaves this machine
             done(outcome="error", error_kind="halted", cost_usd=Decimal(0))
             raise Halted(sent=False)
         try:

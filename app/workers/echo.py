@@ -109,6 +109,13 @@ def live_reply(db: Session, task: Task, run: Run, gateway: Gateway) -> dict[str,
             untrusted=True,
         ),
     ]
+    bind, run_id = db.get_bind(), run.id
+
+    def run_cancelled() -> bool:
+        # the process-wide halt reopens on resume; a run that a stop cancelled must stay quiet
+        with Session(bind) as check:
+            return check.scalar(select(Run.status).where(Run.id == run_id)) != "running"
+
     res = gateway.complete(
         task.assignee,
         TaskRef(task.id, run.id),
@@ -117,6 +124,7 @@ def live_reply(db: Session, task: Task, run: Run, gateway: Gateway) -> dict[str,
         "founder_private",
         purpose="ack",
         max_output_tokens=60,
+        cancelled=run_cancelled,
     )
     line = next((x.strip() for x in res.text.splitlines() if x.strip()), "")[:300]
     if not line:
@@ -199,7 +207,8 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
         return
     output: dict[str, str] = {"echo": task.title}
     live = gateway is not None and task.assignee == "ceo"
-    saved = effects.latest(db, task.id, effects.MODEL_ACK) if live else None
+    # looked up even with live replies off: a recovered task must not skip an unresolved call
+    saved = effects.latest(db, task.id, effects.MODEL_ACK)
     effect_id: str | None = None
     if saved is not None and saved.status == "done" and saved.result:
         output, live = dict(saved.result), False  # replay: no second call

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     crash_retry_cap: int = 3  # the Nth crashed run dead-letters the task
     transient_retries: int = 2
     fake_delay_s: float = 0.0  # tests only; honoured only when gateway_mode is fake
+    fake_ignore_term: bool = False  # tests only: the fake child ignores SIGTERM
     test_crash_point: str = ""  # tests only; honoured only when gateway_mode is fake
 
 

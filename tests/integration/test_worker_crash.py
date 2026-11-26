@@ -193,6 +193,22 @@ def test_emergency_stop_halts_within_five_seconds(start):
     wait_for(lambda: state(c)[0] == "running", what="work after resume")
 
 
+def test_stop_with_a_child_ignoring_sigterm_and_the_real_30s_grace(start):
+    first, second = add("stubborn"), add("c")
+    worker = start(fake_delay_s=120, fake_ignore_term=1, stop_grace_s=30, agent_concurrency=1)
+    kids = wait_for(lambda: children(worker.proc.pid), what="CLI child")
+    began = time.monotonic()
+    with Session(engine()) as s:
+        control.request_stop(s, "founder", "stubborn")
+    # within 5 s: the task is cancelled and nothing new starts, although the child survives
+    assert time.monotonic() - began < 5 and state(first)[0] == "cancelled"
+    time.sleep(5)
+    assert state(second)[0] == "ready" and Path(f"/proc/{kids[0]}").exists()
+    assert rows("select count(*) from runs")[0][0] == 1
+    wait_for(lambda: not Path(f"/proc/{kids[0]}").exists(), 35, "SIGKILL after the grace period")
+    assert 29 <= time.monotonic() - began < 40
+
+
 def test_sigterm_exits_zero_and_hands_back_unsent_work(start):
     tid = add()
     worker = start(echo_seconds=30)

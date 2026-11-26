@@ -168,12 +168,10 @@ class Supervisor:
             status.heartbeat_at, status.in_flight = utcnow(), len(self.active)
             db.commit()
 
-    async def run(self, stop: asyncio.Event, lock_alive: Callable[[], bool]) -> str:
+    async def run(self, stop: asyncio.Event) -> str:
         """Returns a reason if the process must restart; '' when asked to stop."""
         last_health = 0.0
         while not stop.is_set():
-            if not await asyncio.to_thread(lock_alive):
-                return "executor lock lost"
             await self.dispatch()
             if time.monotonic() - last_health >= 2:
                 last_health = time.monotonic()
@@ -191,6 +189,23 @@ class Supervisor:
             except TimeoutError:
                 pass
         return ""
+
+
+def guard_lock(
+    alive: Callable[[], bool], lost: Callable[[], None], every_s: float = 0.5
+) -> threading.Event:
+    """Own thread: losing the executor lock must end the process even if everything else is stuck.
+    Set the returned event to stop guarding."""
+    done = threading.Event()
+
+    def watch() -> None:
+        while not done.wait(every_s):
+            if not alive() and not done.is_set():
+                lost()
+                return
+
+    threading.Thread(target=watch, name="aiorg-lock-guard", daemon=True).start()
+    return done
 
 
 class ControlWatcher:

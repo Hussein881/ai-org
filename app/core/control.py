@@ -73,21 +73,33 @@ def request_stop(db: Session, actor: str, reason: str) -> int:
         control.requested_at = datetime.now(UTC)
         tasks.emit(db, "control.stopped", actor, payload={"reason": reason})
         db.add(AuditLog(actor=actor, action="control.stop", detail={"reason": reason}))
+    generation = control.generation
     db.commit()
+    return cancel_for_stop(db, generation, actor, reason)
+
+
+def cancel_for_stop(db: Session, generation: int, actor: str, reason: str) -> int:
+    """Second commit of a stop. Does nothing if that stop has since been resumed (resume cancels
+    what was in flight itself, so work claimed afterwards must be left alone)."""
+    db.execute(text("set local lock_timeout = '3s'"))
+    control = get(db, "update")
+    if not control.stopped or control.generation != generation:
+        db.rollback()
+        return 0
     n = cancel_active(db, actor, reason)
     db.commit()
     return n
 
 
 def resume(db: Session, actor: str) -> None:
+    """One transaction under the control lock, so no stop can slip in between its steps."""
     db.rollback()
-    if not get(db).stopped:
+    control = get(db, "update")
+    if not control.stopped:
         db.rollback()
         return
     # finish a half-done stop before reopening admission
-    cancel_active(db, actor, get(db).reason or "requested by founder")
-    db.commit()
-    control = get(db, "update")
+    cancel_active(db, actor, control.reason or "requested by founder")
     control.stopped, control.resumed_at = False, datetime.now(UTC)
     tasks.emit(db, "control.resumed", actor)
     db.add(AuditLog(actor=actor, action="control.resume", detail={}))

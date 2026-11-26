@@ -1,6 +1,7 @@
 """S04: dispatch, effects, retries, recovery, stop and the admin API (no worker process)."""
 
 import asyncio
+import threading
 from datetime import timedelta
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from app.gateway.procs import ProcRegistry
 from app.gateway.types import ProviderError, ProviderResponse, utcnow
 from app.workers import echo, queue
 from app.workers.lock import ExecutorLock
-from app.workers.supervisor import ControlWatcher, Supervisor, clear_dead_jobs
+from app.workers.supervisor import ControlWatcher, Supervisor, clear_dead_jobs, guard_lock
 from tests.integration.test_api import _csrf
 from tests.integration.test_echo_gateway import gw, new_task
 
@@ -337,3 +338,60 @@ def test_service_launcher_can_find_the_clis_and_keeps_dotenv_secrets_out():
     assert 'export PATH="$HOME/.local/bin:$PATH"' in launcher  # systemd's PATH lacks it
     assert "set -a" not in launcher and ". ./.env" not in launcher
     assert "POSTGRES_PASSWORD" in Path("scripts/host-env.sh").read_text()
+
+
+# ---- Codex result review regressions -------------------------------------------
+def test_run_cancelled_by_stop_then_resume_never_sends(client, monkeypatch):
+    tid = new_task(client)
+    g, provs = gw()
+    real = echo.live_reply
+
+    def stop_and_resume_first(db, task, run, gateway):
+        with Session(engine()) as other:  # after the intent is committed, before the send
+            control.request_stop(other, "t", "blip")
+            control.resume(other, "t")
+        return real(db, task, run, gateway)
+
+    monkeypatch.setattr(echo, "live_reply", stop_and_resume_first)
+    run_one(g)
+    assert provs["claude_cli"].calls == [] and provs["anthropic_api"].calls == []
+    assert status_of(tid)[0] == "cancelled"
+    assert sql("select count(*) from model_usage where outcome = 'ok'")[0][0] == 0
+
+
+def test_late_second_phase_of_a_resumed_stop_leaves_new_work_alone(client):
+    tid = new_task(client)
+    with Session(engine()) as s:
+        control.request_stop(s, "t", "first")
+        old = control.get(s).generation
+        control.resume(s, "t")
+        echo.claim_one(s)
+        assert control.cancel_for_stop(s, old, "t", "first") == 0
+        control.request_stop(s, "t", "second")
+        control.resume(s, "t")
+        assert control.cancel_for_stop(s, old, "t", "first") == 0
+    assert status_of(tid) == ("cancelled", "emergency stop: second")
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [("intent", ("failed_execution", "effect_unknown")), ("done", ("completed", None))],
+)
+def test_echo_mode_still_honours_effects(client, state, expected):
+    tid = new_task(client)
+    _leave_effect(tid, state, {"reply": "saved"} if state == "done" else None)
+    run_one(None)  # live replies off
+    assert status_of(tid) == expected
+    if state == "done":
+        payloads = sql("select payload->>'reply' from events where kind = 'run.output'")
+        assert [r[0] for r in payloads] == ["saved"]
+
+
+def test_losing_the_executor_lock_is_noticed_by_its_own_thread():
+    lost = threading.Event()
+    holding = [True]
+    guard = guard_lock(lambda: holding[0], lost.set, every_s=0.05)
+    assert not lost.wait(0.3)
+    holding[0] = False
+    assert lost.wait(2)
+    guard.set()
