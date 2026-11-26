@@ -6,7 +6,7 @@
 - The live worker (aiorg-worker.service) runs from this working tree. Leave it on slice/S04-worker
 
 ## Last session
-- Ended with: CONTINUE S04 (reboot verified; reviews and 2 open items remain). Details: docs/state/slices/S04.md
+- Ended with: CONTINUE S04 (reboot verified; remaining reviews ran: FAIL). Details: docs/state/slices/S04.md
 - Done and live-verified: durable worker, kill -9 resume, emergency stop, queue across restart, dashboard
 - Found: test_build_runner.py was switching branches in this repo (fixed)
 
@@ -14,7 +14,8 @@
 - aiorg-worker is now enabled at boot. build-runner is disabled and must stay so (not approved)
 
 ## Remaining for S03 + S04 to reach `[x]`
-- Codex's 2 open items (slices/S04.md); run /code-review, pr-review-toolkit, differential-review
+- All reviewers have run: FAIL. Next: the ONE escalation repair (fable, else opus xhigh) on
+  plans/S04-findings.md + Codex's 2 open items (slices/S04.md), then Codex verification; fail -> BLOCKED
 - Then merge to main, tag phase-b-done, Notion milestone page
 
 ## Facts the next session needs
