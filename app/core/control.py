@@ -60,6 +60,42 @@ def cancel_active(db: Session, actor: str, reason: str) -> int:
     return len(active)
 
 
+def stop_reason(db: Session) -> str | None:
+    """The active stop's reason, or None. A plain read: callers may already hold task and run
+    locks, and taking the control lock after them would invert the lock order."""
+    row = get(db)
+    return (row.reason or "requested by founder") if row.stopped else None
+
+
+def cancel_task(db: Session, task: Task, actor: str) -> None:
+    """Founder cancel of one task. Its open run is closed in the same transaction, so the worker's
+    pre-send check sees it, and the role is freed. Caller holds the task lock. Commits."""
+    for run in db.scalars(
+        select(Run)
+        .where(Run.task_id == task.id, Run.status == "running")
+        .order_by(Run.id)
+        .with_for_update()
+    ):
+        run.status, run.finished_at = "cancelled", datetime.now(UTC)
+    tasks.transition(db, task, "cancelled", actor=actor, commit=False)
+    set_idle_if_free(db, task.assignee, task.id)
+    db.commit()
+
+
+def finish_stop(db: Session, actor: str) -> int:
+    """Live retry of a stop's second phase, which can fail after the fence has committed (for
+    example on lock_timeout). Cheap when there is nothing to do."""
+    db.rollback()
+    row = get(db)
+    busy = db.scalar(select(func.count()).select_from(Task).where(Task.status.in_(ACTIVE)))
+    generation, reason = row.generation, row.reason or "requested by founder"
+    stopped = row.stopped
+    db.rollback()
+    if not stopped or not busy:
+        return 0
+    return cancel_for_stop(db, generation, actor, reason)
+
+
 def request_stop(db: Session, actor: str, reason: str) -> int:
     """Two commits. The first is the admission fence (nothing new can be claimed or spawned);
     the second cancels what was in flight. Startup recovery finishes the second if needed."""

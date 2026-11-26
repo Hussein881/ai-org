@@ -1,6 +1,7 @@
 """What the host worker does besides running jobs: dispatch, execute, watch, report."""
 
 import asyncio
+import contextlib
 import logging
 import threading
 import time
@@ -12,6 +13,7 @@ import psycopg
 from procrastinate import App
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy import Engine, func, or_, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -25,7 +27,10 @@ from app.workers import echo
 from app.workers.queue import conninfo, run_task
 
 log = logging.getLogger("aiorg.worker")
-CONTROL_STALE_S = 3.0
+ACTOR = "worker"
+CONTROL_STALE_S = 3.0  # halt (fail closed) when the stop flag is this old
+CONTROL_RESTART_S = 10.0  # ...and restart the process if it stays unreadable this long
+STUCK_JOB_S = 10.0  # an agent job `doing` with nothing executing it this long is released
 
 
 def available_mb(meminfo: str | None = None) -> int:
@@ -58,12 +63,14 @@ class Supervisor:
         epoch: int,
         registry: ProcRegistry,
         free_mb: Callable[[], int] = available_mb,
+        control_stale: Callable[[], float] = lambda: 0.0,
     ) -> None:
         self.settings, self.engine, self.app = settings, engine, app
         self.gateway, self.epoch, self.registry = gateway, epoch, registry
         self.free_mb = free_mb
+        self.control_stale = control_stale  # seconds since the stop flag was last read
         self.active: dict[str, float] = {}  # task id -> monotonic start
-        self._suspect: dict[str, float] = {}
+        self._suspect: dict[int, float] = {}  # procrastinate job id -> first seen stuck
         self._low_ram_logged = False
 
     def _ram_ok(self) -> bool:
@@ -87,14 +94,15 @@ class Supervisor:
     def work(self, task_id: str) -> None:
         if self.registry.halted():  # stop or shutdown arrived after the job was accepted
             return
-        with Session(self.engine) as db:
-            claimed = echo.claim_one(db, task_id=task_id, epoch=self.epoch)
+        # CLIs spawned from this thread are tagged with the task, so a cancel can kill them
+        with Session(self.engine) as db, self.registry.owner(task_id):
+            claimed = echo.claim_one(
+                db, task_id=task_id, epoch=self.epoch, admit=lambda: not self.registry.halted()
+            )
             if claimed is None:
                 return
             if self.registry.wait(self.settings.echo_seconds):
-                # halted before anything was sent: hand the task back (a stop already cancelled it)
-                if echo._lock_owned(db, *claimed):
-                    echo._requeue(db, *claimed, utcnow())
+                echo.hand_back(db, *claimed)  # halted before anything was sent
                 return
             echo.finish(db, *claimed, self.gateway)
 
@@ -153,7 +161,9 @@ class Supervisor:
 
     # ---- health ----------------------------------------------------------------
     def orphans(self, db: Session, now: float) -> list[str]:
-        """Tasks marked running, with an old run, that nothing here is executing."""
+        """Tasks marked running, with an old run, that nothing here is executing. `active` is
+        read BEFORE the query: a task that ends during it must not look orphaned."""
+        active = set(self.active)
         cutoff = utcnow() - timedelta(seconds=self.settings.orphan_after_s)
         ids = db.scalars(
             select(Task.id)
@@ -162,7 +172,63 @@ class Supervisor:
             .group_by(Task.id)
             .having(func.max(Run.started_at) < cutoff)
         )
-        return [i for i in ids if i not in self.active]
+        return [i for i in ids if i not in active]
+
+    def kill_cancelled(self, db: Session) -> int:
+        """Kill the CLIs of tasks being executed here that are no longer active (a founder cancel
+        or a stop from another process). The run is already closed, so nothing is trusted."""
+        active = set(self.active)
+        if not active:
+            return 0
+        live = set(
+            db.scalars(select(Task.id).where(Task.id.in_(active), Task.status.in_(control.ACTIVE)))
+        )
+        db.rollback()
+        return self.registry.kill_owned(active - live, self.settings.stop_grace_s)
+
+    def release_stuck_jobs(self, db: Session, now: float) -> int:
+        """A job left `doing` (its finish write failed) holds a slot and the task's job lock until
+        a restart. Release one once nothing has executed its task for STUCK_JOB_S."""
+        rows = db.execute(
+            text(
+                "select id, lock from procrastinate_jobs "
+                "where queue_name = 'agent' and status = 'doing' order by id"
+            )
+        ).all()
+        released, seen = 0, set()
+        for job_id, lock in rows:
+            if lock is not None and lock.removeprefix("task:") in self.active:
+                continue
+            seen.add(job_id)
+            first = self._suspect.setdefault(job_id, now)
+            if now - first >= STUCK_JOB_S:
+                db.execute(
+                    text("select procrastinate_finish_job_v1(:id, 'failed', false)"), {"id": job_id}
+                )
+                log.warning("released job %d left running with nothing executing it", job_id)
+                released += 1
+                seen.discard(job_id)
+        self._suspect = {j: t for j, t in self._suspect.items() if j in seen}
+        db.commit()
+        return released
+
+    def health(self, db: Session) -> str:
+        """Every 2 s. Returns a reason if the process must restart, else ''."""
+        self.beat(db)
+        try:
+            control.finish_stop(db, ACTOR)
+        except OperationalError:  # busy: the next tick tries again
+            db.rollback()
+            log.warning("could not finish the emergency stop yet; retrying")
+        self.kill_cancelled(db)
+        self.release_stuck_jobs(db, time.monotonic())
+        stale = self.control_stale()
+        if stale > CONTROL_RESTART_S:
+            return f"stop flag unreadable for {stale:.0f} s"
+        lost = self.orphans(db, time.monotonic())
+        if lost:  # recovery happens only at startup: restart to do it
+            return f"{len(lost)} running task(s) with no execution"
+        return ""
 
     def beat(self, db: Session) -> None:
         status = db.get(WorkerStatus, 1)
@@ -178,14 +244,13 @@ class Supervisor:
             if time.monotonic() - last_health >= 2:
                 last_health = time.monotonic()
 
-                def health() -> list[str]:
+                def check() -> str:
                     with Session(self.engine) as db:
-                        self.beat(db)
-                        return self.orphans(db, time.monotonic())
+                        return self.health(db)
 
-                lost = await asyncio.to_thread(health)
-                if lost:  # recovery happens only at startup: restart to do it
-                    return f"{len(lost)} running task(s) with no execution"
+                reason = await asyncio.to_thread(check)
+                if reason:
+                    return reason
             try:
                 await asyncio.wait_for(stop.wait(), timeout=0.5)
             except TimeoutError:
@@ -225,8 +290,12 @@ class ControlWatcher:
         self.grace_s, self.poll_s = grace_s, poll_s
         self.generation: int | None = None
         self.last_ok = time.monotonic()
+        self._conn: psycopg.Connection | None = None
         self._done = threading.Event()
         self._threads: list[threading.Thread] = []
+
+    def stale_for(self) -> float:
+        return time.monotonic() - self.last_ok
 
     def apply(self, stopped: bool, generation: int) -> None:
         new_stop = self.generation is not None and generation != self.generation
@@ -238,26 +307,41 @@ class ControlWatcher:
         if not stopped:
             self.registry.reopen()
 
+    def _read_once(self) -> None:
+        """One poll. Never raises: the thread must outlive any error. `last_ok` only moves after
+        the flag was read AND acted on; a missing row counts as unreadable."""
+        try:
+            if self._conn is None:
+                self._conn = psycopg.connect(
+                    self.dsn,
+                    autocommit=True,
+                    connect_timeout=2,
+                    options="-c statement_timeout=1000",
+                )
+            row = self._conn.execute(
+                "select stopped, generation from worker_control where id = 1"
+            ).fetchone()
+            if row is None:
+                log.error("stop flag row is missing")
+                return
+            self.apply(row[0], row[1])
+            self.last_ok = time.monotonic()
+        except psycopg.Error as e:
+            log.warning("cannot read the stop flag (%s)", type(e).__name__)
+            self._drop_conn()
+        except Exception as e:  # a bug here must not silently end stop handling
+            log.error("stop flag check failed (%s)", type(e).__name__)
+            self._drop_conn()
+
+    def _drop_conn(self) -> None:
+        conn, self._conn = self._conn, None
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+
     def _read(self) -> None:
-        conn: psycopg.Connection | None = None
         while not self._done.is_set():
-            try:
-                if conn is None:
-                    conn = psycopg.connect(
-                        self.dsn,
-                        autocommit=True,
-                        connect_timeout=2,
-                        options="-c statement_timeout=1000",
-                    )
-                row = conn.execute(
-                    "select stopped, generation from worker_control where id = 1"
-                ).fetchone()
-                if row is not None:
-                    self.last_ok = time.monotonic()
-                    self.apply(row[0], row[1])
-            except psycopg.Error:
-                log.warning("cannot read the stop flag")
-                conn = None
+            self._read_once()
             self._done.wait(self.poll_s)
 
     def _deadman(self) -> None:
@@ -277,3 +361,4 @@ class ControlWatcher:
         self._done.set()
         for t in self._threads:
             t.join(timeout=5)
+        self._drop_conn()

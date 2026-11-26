@@ -223,8 +223,8 @@ def test_cancel_during_run_does_not_strand_role_or_run(client):
         echo.finish(s, task, run)
     assert client.get(f"/api/tasks/{tid}").json()["status"] == "cancelled"
     assert client.get("/api/roles/ceo").json()["status"] == "idle"
-    with Session(engine()) as s:
-        assert s.execute(text("select status from runs")).scalar() == "abandoned"
+    with Session(engine()) as s:  # the cancel itself closes the run (S04 repair M1)
+        assert s.execute(text("select status from runs")).scalar() == "cancelled"
 
 
 def test_restart_requeues_verifying_task(client):
@@ -281,7 +281,9 @@ def test_reconcile_abandons_run_of_cancelled_task(client):
     tid = client.post("/api/tasks", json={"title": "c"}, headers=h).json()["id"]
     with Session(engine()) as s:
         echo.claim_one(s)
-    client.post(f"/api/tasks/{tid}/transition", json={"to": "cancelled"}, headers=h)
+        # a cancelled task whose run was left running (data from before the cancel closed runs)
+        s.execute(text("update tasks set status = 'cancelled' where id = :t"), {"t": tid})
+        s.commit()
     with Session(engine()) as s:
         echo.reconcile(s)
         assert s.execute(text("select status from runs")).scalar() == "abandoned"

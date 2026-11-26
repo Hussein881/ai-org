@@ -124,11 +124,7 @@ def test_secret_name_regex_matches_check_env_clean_script():
     script = (ROOT / "scripts/check-env-clean.sh").read_text()
     m = re.search(r"pattern='\^\((.*)\)='", script)
     assert m
-    assert m.group(1) in SECRET_NAME_RE.pattern.replace("\\", "").replace('"\n    r"', "") or all(
-        tok in SECRET_NAME_RE.pattern
-        for tok in m.group(1).split("|")
-        if tok.isupper() or "_" in tok
-    )
+    assert SECRET_NAME_RE.pattern == f"^({m.group(1)})$"  # identical, not merely overlapping
 
 
 # ---------- assembly ----------

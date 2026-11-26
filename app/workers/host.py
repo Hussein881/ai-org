@@ -9,6 +9,7 @@ import os
 import signal
 import sys
 import time
+from collections.abc import Callable
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -17,8 +18,8 @@ from app.config import get_settings
 from app.core import control
 from app.db.session import engine
 from app.gateway.factory import build_gateway
-from app.gateway.procs import REGISTRY
-from app.gateway.redact import install_log_redaction
+from app.gateway.procs import REGISTRY, ProcRegistry
+from app.gateway.redact import install_log_redaction, redact_text
 from app.workers import echo, queue
 from app.workers.lock import ExecutorLock
 from app.workers.supervisor import (
@@ -30,6 +31,24 @@ from app.workers.supervisor import (
 
 log = logging.getLogger("aiorg.worker")
 SCHEMA_HEAD = "0004"
+
+
+def describe(error: BaseException) -> str:
+    """Type and message for a restart log line, redacted (never just the type: say why)."""
+    return redact_text(f"{type(error).__name__}: {error}")[:300]
+
+
+def on_lock_lost(registry: ProcRegistry, exit_now: Callable[[int], object]) -> None:
+    """Another executor may take over now: die at once. Never waits for the registry mutex (a
+    hung spawn may hold it); systemd kills whatever is left in our cgroup."""
+    registry.halt_now()  # first: nothing may be claimed, sent or spawned from here on
+    log.error("executor lock lost: exiting")
+    exit_now(1)
+
+
+def _hard_exit(code: int) -> None:
+    logging.shutdown()
+    os._exit(code)
 
 
 def wait_for_database() -> None:
@@ -69,7 +88,9 @@ async def serve(lock: ExecutorLock) -> int:
         if missing:  # visible in the log instead of silently skipped routes
             log.warning("enabled providers not reachable from this service: %s", ", ".join(missing))
     app = queue.make_app(settings.database_url)
-    supervisor = Supervisor(settings, engine(), app, gateway, epoch, REGISTRY)
+    supervisor = Supervisor(
+        settings, engine(), app, gateway, epoch, REGISTRY, control_stale=watcher.stale_for
+    )
     queue.bind(supervisor)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -81,14 +102,7 @@ async def serve(lock: ExecutorLock) -> int:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, on_signal)
 
-    def lock_lost() -> None:
-        # another executor may take over now: die at once; systemd kills our whole cgroup
-        REGISTRY.close(0)  # first: nothing may be claimed, sent or spawned from here on
-        log.error("executor lock lost: exiting")
-        logging.shutdown()
-        os._exit(1)
-
-    guard = guard_lock(lock.alive, lock_lost)
+    guard = guard_lock(lock.alive, lambda: on_lock_lost(REGISTRY, _hard_exit))
     watcher.start()
     async with app.open_async():
 
@@ -113,12 +127,16 @@ async def serve(lock: ExecutorLock) -> int:
         code = 0
         if main_task in done:
             error = main_task.exception()
-            reason = f"supervisor error: {type(error).__name__}" if error else main_task.result()
+            reason = f"supervisor error: {describe(error)}" if error else main_task.result()
             if reason:
                 log.error("restarting: %s", reason)
                 code = 1
         else:
-            log.error("a queue worker stopped on its own: restarting")
+            errors = [describe(e) for t in done if not t.cancelled() and (e := t.exception())]
+            log.error(
+                "a queue worker stopped on its own: restarting (%s)",
+                "; ".join(errors) or "no error",
+            )
             code = 1
         if not stop.is_set() and code == 0:
             code = 1
@@ -152,7 +170,7 @@ def main() -> None:
     try:
         code = asyncio.run(serve(lock))
     except Exception as e:
-        log.error("worker failed: %s", type(e).__name__)
+        log.error("worker failed: %s", describe(e))
     finally:
         lock.release()
         logging.shutdown()

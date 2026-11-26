@@ -1,6 +1,7 @@
 import copy
 import logging
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -268,6 +269,7 @@ def test_concurrent_reservations_cannot_exceed_a_cap(env):
     outcomes: list[object] = []
 
     def slow(req):
+        time.sleep(0.3)  # the first call is still in flight while the second one reserves
         return ProviderResponse("ok")
 
     provs["claude_cli"].script = [slow, slow]

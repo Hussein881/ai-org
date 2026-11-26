@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.auth import current_session
-from app.core import effects, state, tasks
+from app.core import control, effects, state, tasks
 from app.db.models import Event, Task
 from app.db.session import engine, get_db
 
@@ -36,6 +36,7 @@ class TaskOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     status_reason: str | None = None
+    retry_at: datetime | None = None  # a ready task waits until then (quota reset or backoff)
 
 
 class EventOut(BaseModel):
@@ -121,6 +122,8 @@ def transition_task(
     try:
         if task.status == "failed_execution" and body.to == "ready":
             effects.founder_retry(db, task, session["email"])
+        elif body.to == "cancelled":
+            control.cancel_task(db, task, session["email"])  # closes its run and frees the role
         else:
             tasks.transition(db, task, body.to, actor=session["email"])
     except state.InvalidTransitionError as e:
