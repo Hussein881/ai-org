@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
@@ -329,3 +330,10 @@ def test_ctl_stop_and_resume(client, capsys):
     assert status_of(tid) == ("cancelled", "emergency stop: cli")
     assert ctl.main(["status"]) == 0 and ctl.main(["resume"]) == 0
     assert "stopped=True reason=cli" in capsys.readouterr().out
+
+
+def test_service_launcher_can_find_the_clis_and_keeps_dotenv_secrets_out():
+    launcher = Path("scripts/run-worker.sh").read_text()
+    assert 'export PATH="$HOME/.local/bin:$PATH"' in launcher  # systemd's PATH lacks it
+    assert "set -a" not in launcher and ". ./.env" not in launcher
+    assert "POSTGRES_PASSWORD" in Path("scripts/host-env.sh").read_text()

@@ -55,6 +55,14 @@ async def serve(lock: ExecutorLock) -> int:
         REGISTRY.halt(settings.stop_grace_s)
     watcher = ControlWatcher(settings.database_url, REGISTRY, settings.stop_grace_s)
     gateway = build_gateway(halted=REGISTRY.halted) if settings.ceo_live_reply else None
+    if gateway is not None:
+        missing = [
+            name
+            for name, provider in gateway.providers.items()
+            if gateway.policy.providers[name].enabled and not provider.available()
+        ]
+        if missing:  # visible in the log instead of silently skipped routes
+            log.warning("enabled providers not reachable from this service: %s", ", ".join(missing))
     app = queue.make_app(settings.database_url)
     supervisor = Supervisor(settings, engine(), app, gateway, epoch, REGISTRY)
     queue.bind(supervisor)

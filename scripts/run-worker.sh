@@ -4,6 +4,8 @@
 # first. The exit code reaches systemd: Restart=on-failure restarts anything but a clean stop.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# systemd gives a bare PATH; the signed-in claude and codex CLIs live in the user's local bin
+export PATH="$HOME/.local/bin:$PATH"
 if [[ -f var/smoke-requested ]]; then
   rm -f var/smoke-requested
   echo "$(date -u +%FT%TZ) aiorg-worker: gateway smoke (api providers)"
