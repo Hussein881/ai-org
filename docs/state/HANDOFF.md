@@ -2,31 +2,42 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S04 (in progress). S03 is `[~]` on slice/S03-gateway, NOT merged; branch S04 from it
-- Phase: B
-- Branch: slice/S03-gateway. WARNING: check `git branch --show-current` before every commit (unexplained checkouts seen twice)
+- Active slice: S04 `[~]` on slice/S04-worker (contains S03 `[~]`). NOT merged. Phase B
+- The live worker (aiorg-worker.service) runs from this working tree. Leave it on slice/S04-worker
 
 ## Last session
-- Ended with: CONTINUE (checkpoint). S03 built and live-verified; see docs/state/slices/S03.md
-- Did: gateway, ledger, quotas, 5 live providers verified, fuel gauges; 139 pytest, 13 Playwright
-- Remaining: S04 host worker closes S03's open HIGH; then run /code-review, pr-review-toolkit, differential-review + Codex on S03+S04; merge
-- e2e: `docker compose -p aiorg-e2e --env-file <own env> up` with AIORG_BIND_IP=127.0.0.1, AIORG_API_PORT=8001, AIORG_PG_PORT=55434; LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu. Test DB: postgres:17-alpine on 127.0.0.1:55433, AIORG_TEST_DATABASE_URL
-- Gates: S05 needs G4 (constitution), still unanswered
-- S04 reboot test needs a human watching: it ends the session
+- Ended with: NEEDS_FOUNDER S04 (root step + reboot test). Details: docs/state/slices/S04.md
+- Done and live-verified: durable worker, kill -9 resume, emergency stop, queue across restart, dashboard
+- Found: test_build_runner.py was switching branches in this repo (fixed)
 
-## Facts the next session needs (not derivable from code in 1 minute)
-- Root setup is done by `scripts/bootstrap/root-setup.sh` (founder runs it with sudo). Claude never uses sudo.
+## S04 reboot test pending: verify after boot
+1. Founder first (root): `sudo systemctl enable aiorg-worker.service` (it is disabled at boot)
+2. Optional: create a task, run `scripts/aiorgctl stop` first to hold a queued one, then `sudo reboot`
+3. After boot: `systemctl is-active aiorg-worker`; `scripts/aiorgctl status` (fresh heartbeat);
+   `docker compose ps` healthy; dashboard shows "Worker alive" (or "Work stopped" if stopped before);
+   queued task still `ready`; no task became `completed` without a run.output event
+- No settings change is needed: the founder reboots, so Claude does not need the reboot allow entry
+- build-runner is disabled at boot and must stay so (not approved; no session auto-resumes)
+
+## Remaining for S03 + S04 to reach `[x]`
+- Reboot test; Codex's 2 open items (slices/S04.md); run /code-review, pr-review-toolkit, differential-review
+- Then merge to main, tag phase-b-done, Notion milestone page
+
+## Facts the next session needs
+- Root setup: scripts/bootstrap/root-setup.sh (founder runs with sudo). Claude never uses sudo beyond D-036
 - Secret status (names, SET/EMPTY only): /srv/aiorg/artifacts/secrets-status.txt
-- Founder decisions live in docs/state/FOUNDER_GATES.md (G1 to G7).
-- Host is Ubuntu 26.10; Python 3.12 is uv-managed for aiorg (D-037).
-- Root access for aiorg is only the sudoers rule in /etc/sudoers.d/aiorg (D-036). Services are system units with User=aiorg; build sessions must pass scripts/check-env-clean.sh.
+- Founder decisions: docs/state/FOUNDER_GATES.md. Worker log: /srv/aiorg/artifacts/logs/aiorg-worker.log
+- Tests: postgres:17-alpine `aiorg-testpg` on 127.0.0.1:55433, AIORG_TEST_DATABASE_URL
+- e2e: compose project aiorg-e2e with its own env file (127.0.0.1, API 8001, PG 55434) plus a fake-mode host
+  worker against it; clear its model_usage first (5h call limit). LD_LIBRARY_PATH=~/.local/pwlibs/root/usr/lib/x86_64-linux-gnu
 
 ## Open issues / blockers
-- DEFERRED: finish build runner (open defects in slices/S00.md), re-review, re-install units, run keycheck. Installed units are stale; keep build-runner stopped. Needs Anwar: constitution interview (before S05); optional bubblewrap
+- S05 needs G4 (constitution), unanswered. S05 onward depends on it
+- DEFERRED: build runner (slices/S00.md); installed units stale; keep stopped. Optional bubblewrap
 
 ## Founder decisions pending
-- G1 fully answered (YES-ALL + K13/K17/K20/K19b). G3 ACCEPT-DEFAULTS. G4 constitution (career only when backlog P2 is added), G5 (P-3, only with P2), G6 (P-4), G7 backups. G2 N/A (rootless PASS).
+- G1 answered. G3 ACCEPT-DEFAULTS. G4 constitution, G5 and G6 (only with P2/P-4), G7 backups. G2 N/A.
 
 ## Do not
-- Don't run `sudo` or read /srv/aiorg/secrets.
+- Don't run `sudo` (beyond D-036 lines) or read /srv/aiorg/secrets.
 - Don't answer a founder gate on the founder's behalf.
