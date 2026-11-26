@@ -66,7 +66,7 @@ Skills: K9 K10 K11 K12 K13 K14 K15 K16 · review K2 K20 · finish K18  (IDs in S
 ---
 ## Phase B: Runs by itself
 
-### S03: Model gateway, usage ledger, fuel gauges `[!]` (blocked with S04; see slice record)
+### S03: Model gateway, usage ledger, fuel gauges `[x]` (closed with S04; founder-accepted deferral, see slice record)
 Tier **T2** · Plan `opus` (written), implement `sonnet` · Review `codex` + adversarial tests · Depends S02
 Founder gate: G3
 Read: ARCH §Gateway §Security, `docs/PROVIDERS.md` (all), `docs/MODEL_POLICY.md Part B`
@@ -80,7 +80,7 @@ Skills: plan K4 · K15 K16 · review K2 K3 K19 (differential) · finish K18 (inc
 **Acceptance:** `founder_private` request routed to a free tier is refused (test); exhausted envelope falls back then queues (test with fake clock); redaction removes a planted fake secret from prompt and logs; ledger never fabricates tokens (NULL when unknown); one live smoke call per enabled provider recorded.
 **What you'll see:** gauges for Claude (subscription and API spend), Codex, Gemini, OpenRouter; the CEO replies to your task in real words.
 
-### S04: Durable worker and restart safety `[!]` (escalation repair failed Codex verification; founder decision)
+### S04: Durable worker and restart safety `[x]` (review FAIL; founder deferred open items to plans/post-implementation-checks.md)
 Tier **T2** · Model `opus` · Review `codex` + crash tests · Depends S03
 Read: ARCH §Recovery §State machine §Stack, `docs/AUTONOMY.md §Stop and resume`
 Skills: plan K4 · K15 K16 K17 · review K2 K3 K19 · finish K18 (incl. TDD)  (IDs in SETUP §3)
