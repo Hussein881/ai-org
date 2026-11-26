@@ -29,6 +29,17 @@ def _int_or_none(v: Any) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
+def _precheck() -> None:
+    """The launch-path guard runs before the prompt exists anywhere outside this process, so any
+    failure here (including being killed by a stop) means nothing was sent."""
+    try:
+        clean = env_is_clean()
+    except ProviderError as e:
+        raise ProviderError(f"precheck_{e.kind}", not_sent=True) from None
+    if not clean:
+        raise ProviderError("env_not_clean", not_sent=True)
+
+
 class ClaudeCli:
     name = "claude_cli"
 
@@ -54,8 +65,7 @@ class ClaudeCli:
         return argv
 
     def call(self, req: ProviderRequest) -> ProviderResponse:
-        if not env_is_clean():
-            raise ProviderError("env_not_clean")
+        _precheck()
         code, out, err = run_cli(self.argv(req), req.prompt, req.timeout_s)
         failed_diag = code != 0 and _LIMIT_TEXT.search(out[:2000] + err[:2000])
         try:
@@ -88,8 +98,7 @@ class CodexCli:
         return shutil.which("codex") is not None
 
     def call(self, req: ProviderRequest) -> ProviderResponse:
-        if not env_is_clean():
-            raise ProviderError("env_not_clean")
+        _precheck()
         argv = [
             "codex",
             "exec",

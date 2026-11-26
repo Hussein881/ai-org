@@ -98,9 +98,12 @@ class PromptTooLarge(GatewayError):
 class AllRoutesFailed(GatewayError):
     """`retryable`: every attempt failed in a way that is safe and worth retrying."""
 
-    def __init__(self, message: str = "all routes failed", retryable: bool = False) -> None:
+    def __init__(
+        self, message: str = "all routes failed", retryable: bool = False, maybe_sent: bool = False
+    ) -> None:
         super().__init__(message)
         self.retryable = retryable
+        self.maybe_sent = maybe_sent  # an attempt may have reached a provider (e.g. a timeout)
 
 
 class Halted(GatewayError):

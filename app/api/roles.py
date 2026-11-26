@@ -9,6 +9,8 @@ from app.api.auth import current_session
 from app.config import get_settings
 from app.db.models import ModelUsage, Role, RoleVersion
 from app.db.session import get_db
+from app.gateway import ledger
+from app.gateway.ledger import day_start
 from app.gateway.types import utcnow
 from app.policy.model_policy import cached_policy
 
@@ -71,14 +73,16 @@ def get_role(slug: str, db: Session = Depends(get_db)) -> RoleDetail:
     try:
         prov, model = policy.route_for(slug)[0]
         route = f"{prov} / {model}"
-    except KeyError:
+    except (KeyError, IndexError):  # no entry, or an empty list
         route = "no route"
-    now = utcnow()
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)  # day_tz is UTC by default
     calls = db.scalar(
         select(func.count())
         .select_from(ModelUsage)
-        .where(ModelUsage.role == slug, ModelUsage.reserved_at >= day_start)
+        .where(
+            ModelUsage.role == slug,
+            ModelUsage.reserved_at >= day_start(utcnow(), policy.day_tz),
+            ledger.counts_toward_limits(),
+        )
     )
     return RoleDetail(
         route=route,

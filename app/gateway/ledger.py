@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.tasks import emit
@@ -15,6 +15,19 @@ from app.gateway.redact import redact_json
 from app.policy.model_policy import Limit, ModelPolicy, ProviderPolicy
 
 STALE_AFTER = timedelta(minutes=15)
+# Ledger rows for attempts that never left this machine: kept on record, never counted.
+HALTED = "halted"
+NOT_SENT = "not_sent:"
+RATE_LIMIT_MIN = timedelta(seconds=60)  # a reset in the past must not requeue at once
+RATE_LIMIT_MAX = timedelta(hours=24)  # a far-future reset must not block for good
+
+
+def counts_toward_limits() -> Any:
+    """Filter for usage rows that may have used quota."""
+    kind = ModelUsage.error_kind
+    return or_(kind.is_(None), and_(kind != HALTED, kind.not_like(f"{NOT_SENT}%")))
+
+
 REQUEST_OVERHEAD_TOKENS = 256
 
 
@@ -24,6 +37,11 @@ class WindowUsage:
     limit: float
     resets_at: datetime | None
     unit: str  # "calls" | "usd"
+
+
+def day_start(now: datetime, tz: str) -> datetime:
+    """Midnight in the policy's day_tz, as UTC."""
+    return _window_start(Limit(window="day", max_calls=1), now, tz)
 
 
 def _window_start(limit: Limit, now: datetime, tz: str) -> datetime:
@@ -60,7 +78,7 @@ def window_usage(
     member = ModelUsage.reserved_at >= start
     if limit.max_usd is not None:  # unsettled spend carries over a window rollover
         member = or_(member, ModelUsage.outcome == "reserved", ModelUsage.finished_at >= start)
-    q = [ModelUsage.provider == provider, member]
+    q = [ModelUsage.provider == provider, member, counts_toward_limits()]
     if limit.model:
         q.append(ModelUsage.model == limit.model)
     oldest = db.scalar(select(func.min(ModelUsage.reserved_at)).where(*q))
@@ -227,6 +245,7 @@ def mark_rate_limited(
 ) -> datetime:
     """Blocks only ever extend (never shorten) under the provider row lock."""
     until = reset_at or (now + timedelta(seconds=default_s))
+    until = min(max(until, now + RATE_LIMIT_MIN), now + RATE_LIMIT_MAX)
     quota = db.scalar(
         select(ProviderQuota).where(ProviderQuota.provider == provider).with_for_update()
     )

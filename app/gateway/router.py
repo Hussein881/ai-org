@@ -144,16 +144,21 @@ class Gateway:
         ref = task_ref or TaskRef()
         refused = skipped = 0
         failures: list[bool] = []  # one entry per failed attempt: was it retryable?
+        maybe_sent = False  # did any failed attempt possibly reach a provider?
         resets: list[datetime] = []
         with self.sf() as db:
             now = self.clock()
             candidates = self._candidates(role, purpose, db, now)
         for provider, model in candidates:
             if self.halted() or cancelled():
-                raise Halted(sent=bool(failures))
+                raise Halted(sent=maybe_sent)
             pp = self.policy.providers[provider]
             prov = self.providers.get(provider)
-            if not pp.enabled or prov is None or not prov.available():
+            if not pp.enabled:
+                log.info("route %s:%s for %s skipped: provider disabled", provider, model, role)
+                continue
+            if prov is None or not prov.available():
+                log.info("route %s:%s for %s skipped: not available", provider, model, role)
                 continue
             if not self._allowed(provider, pp.allowed_data_classes, effective):
                 refused += 1
@@ -177,7 +182,10 @@ class Gateway:
             )
             if isinstance(outcome, Result):
                 return outcome
-            kind, reset = outcome
+            kind, reset, sent = outcome
+            maybe_sent = maybe_sent or sent
+            if kind == "halted":
+                raise Halted(sent=maybe_sent)
             if kind != "blocked":
                 failures.append(kind == "retryable")
             else:
@@ -191,6 +199,7 @@ class Gateway:
         raise AllRoutesFailed(
             f"all routes failed for role {role!r}",
             retryable=bool(failures) and all(failures),
+            maybe_sent=maybe_sent,
         )
 
     def _attempt(
@@ -206,7 +215,8 @@ class Gateway:
         max_out: int,
         timeout_s: float,
         cancelled: Callable[[], bool],
-    ) -> Result | tuple[str, datetime | None]:
+    ) -> Result | tuple[str, datetime | None, bool]:
+        """A Result, or (kind, reset, maybe_sent) with kind blocked|retryable|failed|halted."""
         pp = self.policy.providers[provider]
         info = pp.models[model]
         with self.sf() as db:
@@ -225,7 +235,7 @@ class Gateway:
                 max_out,
             )
             if isinstance(got, ledger.Blocked):
-                return "blocked", got.resets_at
+                return "blocked", got.resets_at, False
             usage_id = got
         started = time.monotonic()
 
@@ -240,8 +250,8 @@ class Gateway:
                 )
 
         if self.halted() or cancelled():  # last gate before anything leaves this machine
-            done(outcome="error", error_kind="halted", cost_usd=Decimal(0))
-            raise Halted(sent=False)
+            done(outcome="error", error_kind=ledger.HALTED, cost_usd=Decimal(0))
+            return "halted", None, False
         try:
             resp: ProviderResponse = prov.call(
                 ProviderRequest(
@@ -256,22 +266,33 @@ class Gateway:
             with self.sf() as db:
                 until = ledger.mark_rate_limited(db, provider, e.reset_at, self.clock())
             done(outcome="rate_limited", error_kind="rate_limited")
-            return "blocked", until
+            return "blocked", until, False
         except ProviderError as e:
-            done(
-                outcome="malformed" if e.kind == "malformed_output" else "error", error_kind=e.kind
-            )
+            unsent = e.not_sent or e.kind == "halted"
+            if unsent:  # recorded, but it never used quota
+                done(
+                    outcome="error",
+                    error_kind=f"{ledger.NOT_SENT}{e.kind}"[:64],
+                    cost_usd=Decimal(0),
+                )
+            else:
+                done(
+                    outcome="malformed" if e.kind == "malformed_output" else "error",
+                    error_kind=e.kind,
+                )
+            # an HTTP status means the provider answered and refused or failed the request
+            sent = not unsent and not e.kind.startswith("http_")
             if self.halted():  # never fall back to another provider during a stop
-                raise Halted(sent=e.kind != "halted") from None
+                return "halted", None, sent
             retry = e.not_sent or e.kind in RETRYABLE_KINDS
-            return ("retryable" if retry else "failed"), None
+            return ("retryable" if retry else "failed"), None, sent
         except GatewayError:
             done(outcome="error", error_kind="gateway_error")
-            return "failed", None
+            return "failed", None, True
         except Exception as e:  # never let a provider bug leak raw details
             log.error("provider %s crashed: %s", provider, type(e).__name__)
             done(outcome="error", error_kind="provider_crash")
-            return "failed", None
+            return "failed", None, True
         cost: Decimal | None = None
         if pp.pricing_basis != "api":
             cost = Decimal(0)

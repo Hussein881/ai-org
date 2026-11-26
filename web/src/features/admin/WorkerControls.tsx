@@ -20,7 +20,7 @@ export function workerState(s: AdminStatus | undefined, failed: boolean) {
   if (failed || !s) return { label: failed ? 'Worker unknown' : 'Checking worker', dot: 'bg-status-waiting' }
   if (s.stopped) return { label: 'Work stopped', dot: 'bg-status-blocked' }
   if (!s.worker_alive) return { label: 'Worker offline', dot: 'bg-status-blocked' }
-  return { label: 'Worker alive', dot: 'bg-emerald-500' }
+  return { label: 'Worker alive', dot: 'bg-status-ok' }
 }
 
 function WorkerDot({ status, failed }: { status: AdminStatus | undefined; failed: boolean }) {

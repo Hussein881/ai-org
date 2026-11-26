@@ -21,6 +21,7 @@
   --ring: oklch(0.55 0.1 200);
   --radius: 0.625rem;
   --status-idle: oklch(0.62 0.02 245);
+  --status-ok: oklch(0.6 0.15 150);
   --status-working: oklch(0.55 0.17 255);
   --status-waiting: oklch(0.68 0.15 75);
   --status-blocked: oklch(0.55 0.2 27);
@@ -46,6 +47,7 @@
   --input: oklch(0.34 0.02 245);
   --ring: oklch(0.7 0.1 195);
   --status-idle: oklch(0.65 0.02 245);
+  --status-ok: oklch(0.74 0.15 150);
   --status-working: oklch(0.7 0.14 250);
   --status-waiting: oklch(0.8 0.14 80);
   --status-blocked: oklch(0.7 0.19 25);
@@ -53,6 +55,7 @@
 }
 @theme inline {
   --color-status-idle: var(--status-idle);
+  --color-status-ok: var(--status-ok);
   --color-status-working: var(--status-working);
   --color-status-waiting: var(--status-waiting);
   --color-status-blocked: var(--status-blocked);

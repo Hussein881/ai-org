@@ -10,6 +10,7 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from typing import Any
 
 from app.gateway.types import ProviderError
@@ -30,6 +31,18 @@ class ProcRegistry:
         self._killed: set[int] = set()
         self._halt = threading.Event()
         self._closed = False
+        self._owners: dict[int, str] = {}  # pid -> task that spawned it
+        self._local = threading.local()
+
+    @contextlib.contextmanager
+    def owner(self, key: str) -> Iterator[None]:
+        """Children spawned by this thread inside the block are tagged with `key`."""
+        prev = getattr(self._local, "key", None)
+        self._local.key = key
+        try:
+            yield
+        finally:
+            self._local.key = prev
 
     def halted(self) -> bool:
         return self._halt.is_set()
@@ -46,12 +59,16 @@ class ProcRegistry:
                 argv, start_new_session=True, **kw
             )
             self._procs.add(proc)
+            key = getattr(self._local, "key", None)
+            if key is not None:
+                self._owners[proc.pid] = key
             return proc
 
     def forget(self, proc: subprocess.Popen[str]) -> bool:
         """Drop a finished child. True if we signalled it."""
         with self._mu:
             self._procs.discard(proc)
+            self._owners.pop(proc.pid, None)
             killed = proc.pid in self._killed
             self._killed.discard(proc.pid)
             return killed
@@ -80,6 +97,30 @@ class ProcRegistry:
         thread = threading.Thread(target=reap, name="aiorg-reaper")  # non-daemon: must finish
         thread.start()
         return thread
+
+    def kill_owned(self, keys: set[str], grace_s: float) -> int:
+        """Terminate the children tagged with any of `keys` (a cancelled task's CLI)."""
+        if not keys:
+            return 0
+        with self._mu:
+            procs = [p for p in self._procs if self._owners.get(p.pid) in keys]
+        if procs:
+            self.terminate(procs, grace_s)
+        return len(procs)
+
+    def halt_now(self) -> None:
+        """Permanent halt that never waits for the mutex (a hung Popen may hold it): the process
+        is about to exit. Children already registered get SIGKILL; one still being spawned dies
+        with the service cgroup."""
+        self._closed = True
+        self._halt.set()
+        try:
+            procs = list(self._procs)
+        except RuntimeError:  # changed size while copying: take what we can
+            procs = []
+        for p in procs:
+            self._killed.add(p.pid)
+            _signal_group(p.pid, signal.SIGKILL)
 
     def halt(self, grace_s: float) -> threading.Thread | None:
         with self._mu:

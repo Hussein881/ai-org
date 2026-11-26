@@ -3,6 +3,7 @@
 import argparse
 import sys
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import control
@@ -21,7 +22,15 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     with Session(engine()) as db:
         if args.cmd == "stop":
-            n = control.request_stop(db, ACTOR, args.reason)
+            try:
+                n = control.request_stop(db, ACTOR, args.reason)
+            except OperationalError:  # the database is busy; same rule as POST /api/admin/stop
+                db.rollback()
+                if not control.get(db).stopped:
+                    print("could not stop yet: the database is busy. Try again.")
+                    return 1
+                print("stopped; the worker finishes cancelling running tasks")
+                return 0
             print(f"stopped; {n} running task(s) cancelled")
         elif args.cmd == "resume":
             control.resume(db, ACTOR)

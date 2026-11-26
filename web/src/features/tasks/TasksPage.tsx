@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Task } from '@/lib/api'
+import { taskNote } from './note'
 
 const COLUMNS: { title: string; statuses: string[] }[] = [
   { title: 'Ready', statuses: ['draft', 'ready'] },
@@ -59,6 +60,7 @@ function TaskForm() {
 }
 
 function TaskCard({ task }: { task: Task }) {
+  const note = taskNote(task)
   return (
     <li>
       <Link to="/tasks/$taskId" params={{ taskId: task.id }} className="block rounded-lg border bg-card p-3 hover:border-primary focus-visible:outline-2 focus-visible:outline-ring">
@@ -67,6 +69,7 @@ function TaskCard({ task }: { task: Task }) {
           <Badge variant="secondary">{statusLabel(task.status)}</Badge>
           {task.assignee}
         </span>
+        {note && <span className="mt-1 block text-xs text-muted-foreground">{note}</span>}
       </Link>
     </li>
   )

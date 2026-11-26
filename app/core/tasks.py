@@ -23,7 +23,14 @@ def emit(
 
 
 def set_role_status(db: Session, slug: str, status: str, task_id: str | None = None) -> None:
-    role = db.scalar(select(Role).where(Role.slug == slug))
+    """Locks the role row and reads its committed status, so a concurrent idle reset either waits
+    for this transaction or is seen by it. Lock order: control, task, run, role."""
+    role = db.scalar(
+        select(Role)
+        .where(Role.slug == slug)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if role is not None and role.status != status:
         role.status = status
         emit(db, "role.status", slug, task_id=task_id, payload={"slug": slug, "status": status})

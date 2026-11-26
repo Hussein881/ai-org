@@ -6,7 +6,7 @@ An `intent` left behind by a dead run is never re-executed without the founder's
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core import tasks
@@ -51,6 +51,15 @@ def resolve(db: Session, effect_id: str, status: str, result: dict[str, str] | N
     row.status, row.updated_at = status, datetime.now(UTC)
     if result is not None:
         row.result = dict(result)
+
+
+def last_retry_at(db: Session, task_id: str) -> datetime | None:
+    """When the founder last retried this task: automatic retry and crash budgets restart there."""
+    return db.scalar(
+        select(func.max(AuditLog.created_at)).where(
+            AuditLog.task_id == task_id, AuditLog.action == "task.retry"
+        )
+    )
 
 
 def founder_retry(db: Session, task: Task, actor: str) -> None:

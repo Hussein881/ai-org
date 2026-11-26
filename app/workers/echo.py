@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_, select
@@ -33,13 +34,17 @@ TRANSIENT_BACKOFF = (timedelta(seconds=10), timedelta(seconds=60))
 
 
 def claim_one(
-    db: Session, task_id: str | None = None, epoch: int | None = None
+    db: Session,
+    task_id: str | None = None,
+    epoch: int | None = None,
+    admit: Callable[[], bool] | None = None,
 ) -> tuple[Task, Run] | None:
     """Atomically take a ready task (the oldest, or `task_id`) and open a run.
 
     The shared lock on worker_control serializes this with an emergency stop: either the claim
     commits first and the stop cancels it, or the claim sees the stop. `epoch` fences an old
-    executor; production entry points always pass it."""
+    executor; production entry points always pass it. `admit` (the process-local halt) is checked
+    again right before the commit; a halt landing after that is handed back by the caller."""
     state_row = control.get(db, "share")
     if state_row.stopped or (epoch is not None and state_row.epoch != epoch):
         db.rollback()
@@ -69,6 +74,9 @@ def claim_one(
         db, "run.started", ACTOR, task_id=task.id, run_id=run.id, payload={"attempt": attempt}
     )
     tasks.set_role_status(db, task.assignee, "working", task.id)
+    if admit is not None and not admit():
+        db.rollback()
+        return None
     tasks.transition(db, task, "running", actor=ACTOR)
     return task, run
 
@@ -149,8 +157,40 @@ def _lock_owned(db: Session, task: Task, run: Run) -> bool:
     return True
 
 
+def _cancel_for_stop(db: Session, task: Task, run: Run, reason: str) -> None:
+    """An emergency stop is active but its second phase has not cancelled this run (it failed or
+    has not run yet). Cancel it here instead of completing, requeueing or dead-lettering it.
+    Caller holds the ownership lock."""
+    if task.status not in control.ACTIVE:
+        _abandon(db, task, run, "task changed while running")
+        return
+    run.status, run.finished_at = "cancelled", utcnow()
+    db.flush()
+    tasks.transition(
+        db, task, "cancelled", actor=ACTOR, commit=False, reason=f"emergency stop: {reason}"
+    )
+    control.set_idle_if_free(db, task.assignee, task.id)
+    db.commit()
+
+
+def hand_back(db: Session, task: Task, run: Run) -> None:
+    """Nothing was sent: return the task to the queue, or cancel it if a stop is active."""
+    if not _lock_owned(db, task, run):
+        return
+    stop = control.stop_reason(db)
+    if stop is not None:
+        _cancel_for_stop(db, task, run, stop)
+    else:
+        _requeue(db, task, run, utcnow())
+
+
 def _requeue(
-    db: Session, task: Task, run: Run, resets_at: datetime, run_status: str = "abandoned"
+    db: Session,
+    task: Task,
+    run: Run,
+    resets_at: datetime,
+    run_status: str = "abandoned",
+    reason: str | None = None,
 ) -> None:
     """Park this task until `resets_at`; other tasks keep flowing. Caller holds the ownership
     lock (anything else it added to the session commits with this)."""
@@ -168,7 +208,7 @@ def _requeue(
         run_id=run.id,
         payload={"resets_at": resets_at.isoformat()},
     )
-    tasks.transition(db, task, "ready", actor=ACTOR, commit=False)
+    tasks.transition(db, task, "ready", actor=ACTOR, commit=False, reason=reason)
     control.set_idle_if_free(db, task.assignee, task.id)
     db.commit()
 
@@ -186,12 +226,13 @@ def _fail(db: Session, task: Task, run: Run, reason: str) -> None:
 
 
 def _retry_delay(db: Session, task: Task) -> timedelta | None:
-    """Backoff for the next automatic retry, or None when the budget is spent."""
-    used = db.scalar(
-        select(func.count())
-        .select_from(Run)
-        .where(Run.task_id == task.id, Run.status == "transient")
-    )
+    """Backoff for the next automatic retry, or None when the budget is spent. The budget
+    restarts at the founder's last Retry."""
+    q = [Run.task_id == task.id, Run.status == "transient"]
+    since = effects.last_retry_at(db, task.id)
+    if since is not None:
+        q.append(Run.started_at > since)
+    used = db.scalar(select(func.count()).select_from(Run).where(*q))
     if (used or 0) >= get_settings().transient_retries:
         return None
     return TRANSIENT_BACKOFF[min(used or 0, len(TRANSIENT_BACKOFF) - 1)]
@@ -204,6 +245,10 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
         return
     if task.status != "running":  # cancelled before dispatch: send nothing to any model
         _abandon(db, task, run, "task changed before the call")
+        return
+    stop = control.stop_reason(db)
+    if stop is not None:  # a stop whose second phase has not reached this run yet
+        _cancel_for_stop(db, task, run, stop)
         return
     output: dict[str, str] = {"echo": task.title}
     live = gateway is not None and task.assignee == "ceo"
@@ -226,7 +271,7 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
 
     queued_until: datetime | None = None
     failure: str | None = None
-    retryable = False
+    retryable = maybe_sent = False
     halted: Halted | None = None
     if live and gateway is not None:
         try:
@@ -236,7 +281,7 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
         except Halted as h:
             halted = h
         except AllRoutesFailed as e:
-            failure, retryable = type(e).__name__, e.retryable
+            failure, retryable, maybe_sent = type(e).__name__, e.retryable, e.maybe_sent
         except GatewayError as e:
             failure = type(e).__name__
         if effect_id and not (queued_until or failure or halted):
@@ -247,25 +292,30 @@ def finish(db: Session, task: Task, run: Run, gateway: Gateway | None = None) ->
 
     if not _lock_owned(db, task, run):
         return
-    if halted is not None:  # shutdown (an emergency stop has already cancelled the run)
-        if effect_id:
-            effects.resolve(db, effect_id, "unknown" if halted.sent else "failed")
+    if effect_id and (halted or queued_until or failure):
+        unknown = (halted is not None and halted.sent) or (failure is not None and maybe_sent)
+        effects.resolve(db, effect_id, "unknown" if unknown else "failed")
+    stop = control.stop_reason(db)
+    if stop is not None:  # never complete, requeue or dead-letter work a stop has not cancelled
+        _cancel_for_stop(db, task, run, stop)
+        return
+    if halted is not None:  # shutdown, or a stop that has since been resumed
         if halted.sent:
             _fail(db, task, run, "effect_unknown")
         else:
             _requeue(db, task, run, utcnow())
         return
     if queued_until is not None:
-        if effect_id:
-            effects.resolve(db, effect_id, "failed")
-        _requeue(db, task, run, queued_until)
+        _requeue(db, task, run, queued_until, reason="waiting_quota")
         return
     if failure is not None:
-        if effect_id:
-            effects.resolve(db, effect_id, "failed")
         delay = _retry_delay(db, task) if retryable else None
-        if delay is not None:
-            _requeue(db, task, run, utcnow() + delay, run_status="transient")
+        if maybe_sent:  # e.g. a timeout: the provider may have received it
+            _fail(db, task, run, "call_maybe_sent")
+        elif delay is not None:
+            _requeue(
+                db, task, run, utcnow() + delay, run_status="transient", reason="retry_transient"
+            )
         else:
             _fail(db, task, run, failure)
         return
@@ -312,9 +362,11 @@ def reconcile(db: Session) -> int:
         for run in db.scalars(select(Run).where(Run.task_id == task.id, Run.status == "running")):
             run.status, run.finished_at, run.result = "abandoned", utcnow(), dict(CRASHED)
         db.flush()
-        crashes = sum(
-            r == CRASHED for r in db.scalars(select(Run.result).where(Run.task_id == task.id))
-        )
+        since = effects.last_retry_at(db, task.id)  # the founder's Retry restarts the count
+        counted = [Run.task_id == task.id]
+        if since is not None:
+            counted.append(Run.started_at > since)
+        crashes = sum(r == CRASHED for r in db.scalars(select(Run.result).where(*counted)))
         saved = effects.latest(db, task.id, effects.MODEL_ACK)
         limit = cap * 2 if saved is not None and saved.status == "done" else cap
         tasks.emit(db, "run.abandoned", ACTOR, task_id=task.id, payload={"reason": "restart"})
@@ -377,7 +429,9 @@ async def loop() -> None:
 def main() -> None:
     """Host launcher: `--once` claims one ready task, replies via the live gateway, exits."""
     from app.gateway.factory import build_gateway
+    from app.gateway.procs import REGISTRY
     from app.gateway.redact import install_log_redaction
+    from app.workers.supervisor import ControlWatcher
 
     install_log_redaction()
     ap = argparse.ArgumentParser()
@@ -387,19 +441,24 @@ def main() -> None:
     if not lock.acquire():
         print("another worker is running; stop aiorg-worker.service first")
         return
+    settings = get_settings()
+    # same stop handling as the service: a stop halts the gateway and kills a running CLI
+    watcher = ControlWatcher(settings.database_url, REGISTRY, settings.stop_grace_s)
+    watcher.start()
     try:
         with Session(engine()) as db:
             epoch = control.bump_epoch(db)
             reconcile(db)
-            claimed = claim_one(db, epoch=epoch)
+            claimed = claim_one(db, epoch=epoch, admit=lambda: not REGISTRY.halted())
             if claimed is None:
                 print("no ready task")
                 return
             task, run = claimed
-            finish(db, task, run, build_gateway())
+            finish(db, task, run, build_gateway(halted=REGISTRY.halted))
             db.refresh(task)
             print(f"task {task.id} -> {task.status}")
     finally:
+        watcher.close()
         lock.release()
 
 
