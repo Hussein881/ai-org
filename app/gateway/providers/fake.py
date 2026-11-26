@@ -14,12 +14,15 @@ class FakeProvider:
             ProviderResponse | Exception | Callable[[ProviderRequest], ProviderResponse]
         ] = []
         self.is_available = True
+        self.on_call: Callable[[], None] | None = None
 
     def available(self) -> bool:
         return self.is_available
 
     def call(self, req: ProviderRequest) -> ProviderResponse:
         self.calls.append(req)
+        if self.on_call is not None:
+            self.on_call()
         if self.script:
             step = self.script.pop(0)
             if isinstance(step, Exception):

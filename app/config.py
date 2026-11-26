@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     gateway_mode: Literal["fake", "live"] = "fake"
     ceo_live_reply: bool = False
     model_policy_path: str = "config/model_policy.yaml"
+    # durable worker (S04)
+    agent_concurrency: int = 2
+    min_free_ram_mb: int = 1536
+    stop_grace_s: float = 30.0
+    orphan_after_s: float = 60.0
+    crash_retry_cap: int = 3  # the Nth crashed run dead-letters the task
+    transient_retries: int = 2
+    fake_delay_s: float = 0.0  # tests only; honoured only when gateway_mode is fake
+    test_crash_point: str = ""  # tests only; honoured only when gateway_mode is fake
 
 
 def get_settings() -> Settings:

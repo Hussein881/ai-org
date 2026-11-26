@@ -21,6 +21,7 @@ from app.gateway.types import (
     DataClass,
     DataClassRefused,
     GatewayError,
+    Halted,
     PromptPart,
     ProviderError,
     ProviderRequest,
@@ -38,6 +39,8 @@ log = logging.getLogger("aiorg.gateway")
 # Hard floor, independent of the YAML: what each provider class may ever receive.
 FLOOR_PUBLIC_ONLY = PUBLIC_ONLY
 BUILD_PAUSE_RETRY = timedelta(minutes=15)
+# Connect failures never reached the provider; these statuses are the provider saying "try again".
+RETRYABLE_KINDS = frozenset({"http_500", "http_502", "http_503", "http_529"})
 
 
 @dataclass(frozen=True)
@@ -69,9 +72,11 @@ class Gateway:
         providers: dict[str, Provider],
         clock: Clock = utcnow,
         is_build_active: Callable[[], bool] = systemctl_build_active,
+        halted: Callable[[], bool] = lambda: False,
     ) -> None:
         self.sf, self.policy, self.providers = session_factory, policy, providers
         self.clock, self.is_build_active = clock, is_build_active
+        self.halted = halted
 
     # ---- helpers -------------------------------------------------------------
     def _claude_pct(self, db: Session, now: datetime) -> float:
@@ -137,11 +142,14 @@ class Gateway:
             raise DataClassRefused("schema contains secret-looking content")
         ref = task_ref or TaskRef()
         refused = skipped = 0
+        failures: list[bool] = []  # one entry per failed attempt: was it retryable?
         resets: list[datetime] = []
         with self.sf() as db:
             now = self.clock()
             candidates = self._candidates(role, purpose, db, now)
         for provider, model in candidates:
+            if self.halted():
+                raise Halted(sent=bool(failures))
             pp = self.policy.providers[provider]
             prov = self.providers.get(provider)
             if not pp.enabled or prov is None or not prov.available():
@@ -168,7 +176,9 @@ class Gateway:
             if isinstance(outcome, Result):
                 return outcome
             kind, reset = outcome
-            if kind == "blocked":
+            if kind != "blocked":
+                failures.append(kind == "retryable")
+            else:
                 skipped += 1
                 if reset:
                     resets.append(reset)
@@ -176,7 +186,10 @@ class Gateway:
             raise DataClassRefused(f"no route for role {role!r} may receive {effective} data")
         if resets:
             raise Queued(min(resets))
-        raise AllRoutesFailed(f"all routes failed for role {role!r}")
+        raise AllRoutesFailed(
+            f"all routes failed for role {role!r}",
+            retryable=bool(failures) and all(failures),
+        )
 
     def _attempt(
         self,
@@ -223,6 +236,9 @@ class Gateway:
                     **kw,
                 )
 
+        if self.halted():  # last gate before anything leaves this machine
+            done(outcome="error", error_kind="halted", cost_usd=Decimal(0))
+            raise Halted(sent=False)
         try:
             resp: ProviderResponse = prov.call(
                 ProviderRequest(
@@ -242,7 +258,10 @@ class Gateway:
             done(
                 outcome="malformed" if e.kind == "malformed_output" else "error", error_kind=e.kind
             )
-            return "failed", None
+            if self.halted():  # never fall back to another provider during a stop
+                raise Halted(sent=e.kind != "halted") from None
+            retry = e.not_sent or e.kind in RETRYABLE_KINDS
+            return ("retryable" if retry else "failed"), None
         except GatewayError:
             done(outcome="error", error_kind="gateway_error")
             return "failed", None

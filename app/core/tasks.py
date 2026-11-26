@@ -53,6 +53,7 @@ def transition(
     actor: str,
     check_record: dict[str, Any] | None = None,
     commit: bool = True,
+    reason: str | None = None,
 ) -> Task:
     """Validated move. Raises InvalidTransitionError; caller commits via this function."""
     db.refresh(task, with_for_update=True)  # re-read under a row lock: no stale-state transitions
@@ -61,6 +62,7 @@ def transition(
     new = state.check(task.status, target, has_check_record=task.check_record is not None)
     old = task.status
     task.status = new.value
+    task.status_reason = reason[:200] if reason else None
     task.updated_at = datetime.now(UTC)
     emit(db, "task.status", actor, task_id=task.id, payload={"from": old, "to": new.value})
     db.add(

@@ -72,9 +72,10 @@ class RateLimited(GatewayError):
 class ProviderError(GatewayError):
     """Provider failed. `kind` is a short code; raw bodies are never kept."""
 
-    def __init__(self, kind: str) -> None:
+    def __init__(self, kind: str, not_sent: bool = False) -> None:
         super().__init__(kind)
         self.kind = kind
+        self.not_sent = not_sent
 
 
 class MalformedOutput(ProviderError):
@@ -95,7 +96,19 @@ class PromptTooLarge(GatewayError):
 
 
 class AllRoutesFailed(GatewayError):
-    pass
+    """`retryable`: every attempt failed in a way that is safe and worth retrying."""
+
+    def __init__(self, message: str = "all routes failed", retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+class Halted(GatewayError):
+    """Emergency stop or shutdown. `sent`: a request may already have reached a provider."""
+
+    def __init__(self, sent: bool = False) -> None:
+        super().__init__("halted")
+        self.sent = sent
 
 
 class Queued(GatewayError):

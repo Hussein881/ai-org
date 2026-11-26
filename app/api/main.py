@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api import auth, roles, tasks, usage
+from app.api import admin, auth, roles, tasks, usage
 from app.config import get_settings
 from app.db.session import engine
 from app.org.seed import seed_roles
@@ -36,6 +36,7 @@ app.include_router(auth.router)
 app.include_router(roles.router)
 app.include_router(tasks.router)
 app.include_router(usage.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health", tags=["ops"])

@@ -195,7 +195,7 @@ def finalize(
     error_kind: str | None = None,
     event_payload: dict[str, object] | None = None,
 ) -> None:
-    row = db.get(ModelUsage, usage_id)
+    row = db.get(ModelUsage, usage_id, with_for_update=True)
     if row is None:
         return
     row.outcome, row.finished_at, row.latency_ms = outcome, now, latency_ms
@@ -244,9 +244,9 @@ def mark_rate_limited(
 def reconcile_stale(db: Session, now: datetime) -> int:
     """Reserved rows whose caller vanished become `abandoned` (they keep counting toward quota)."""
     rows = db.scalars(
-        select(ModelUsage).where(
-            ModelUsage.outcome == "reserved", ModelUsage.reserved_at < now - STALE_AFTER
-        )
+        select(ModelUsage)
+        .where(ModelUsage.outcome == "reserved", ModelUsage.reserved_at < now - STALE_AFTER)
+        .with_for_update(skip_locked=True)  # a row being finalized keeps its real outcome
     ).all()
     for r in rows:
         # the charge stays in the window where the call was made, not where it was swept

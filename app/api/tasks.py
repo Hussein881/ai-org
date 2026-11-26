@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.auth import current_session
-from app.core import state, tasks
+from app.core import effects, state, tasks
 from app.db.models import Event, Task
 from app.db.session import engine, get_db
 
@@ -35,6 +35,7 @@ class TaskOut(BaseModel):
     assignee: str
     created_at: datetime
     updated_at: datetime
+    status_reason: str | None = None
 
 
 class EventOut(BaseModel):
@@ -118,7 +119,10 @@ def transition_task(
     ):
         raise HTTPException(409, f"a task cannot be moved to {body.to} from the dashboard")
     try:
-        tasks.transition(db, task, body.to, actor=session["email"])
+        if task.status == "failed_execution" and body.to == "ready":
+            effects.founder_retry(db, task, session["email"])
+        else:
+            tasks.transition(db, task, body.to, actor=session["email"])
     except state.InvalidTransitionError as e:
         db.rollback()
         raise HTTPException(409, str(e)) from None

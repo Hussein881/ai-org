@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# aiorgctl stop [--reason TEXT] | resume | status
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")/.."
+. scripts/host-env.sh
+exec .venv/bin/python -m app.ctl "$@"

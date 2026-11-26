@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     DateTime,
     ForeignKey,
     Identity,
@@ -91,6 +92,7 @@ class Task(_Row, Base):
     check_record: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    status_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class Run(_Row, Base):
@@ -143,3 +145,38 @@ class ProviderQuota(_Row, Base):
         DateTime(timezone=True), nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ExternalEffect(_Row, Base):
+    """Task-level record of a side effect, written before it starts and after it ends."""
+
+    __tablename__ = "external_effect"
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"))
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"))
+    kind: Mapped[str] = mapped_column(String(32))
+    attempt: Mapped[int] = mapped_column(Integer)
+    idempotency_key: Mapped[str] = mapped_column(String(200), unique=True)
+    status: Mapped[str] = mapped_column(String(16), default="intent")
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class WorkerControl(Base):
+    """Single row: emergency stop flag/generation and the current executor epoch."""
+
+    __tablename__ = "worker_control"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    stopped: Mapped[bool] = mapped_column(Boolean, default=False)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
+    epoch: Mapped[int] = mapped_column(Integer, default=0)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    actor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkerStatus(Base):
+    __tablename__ = "worker_status"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    in_flight: Mapped[int] = mapped_column(Integer, default=0)

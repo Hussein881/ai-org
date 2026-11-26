@@ -32,7 +32,8 @@ services:
       AIORG_FOUNDER_PASSWORD_HASH: ${AIORG_FOUNDER_PASSWORD_HASH:-}
       AIORG_COOKIE_SECURE: ${AIORG_COOKIE_SECURE:-false}  # plain http over the tailnet (founder-accepted)
       AIORG_GATEWAY_MODE: fake   # pinned: the container has no CLIs or provider keys
-      AIORG_WORKER_ENABLED: ${AIORG_WORKER_ENABLED:-true}
+      # the executor is the host worker (aiorg-worker.service); this is a development fallback
+      AIORG_WORKER_ENABLED: ${AIORG_WORKER_ENABLED:-false}
     ports:
       - "${AIORG_BIND_IP:?set AIORG_BIND_IP to the Tailscale IP}:${AIORG_API_PORT:-8000}:8000"
     healthcheck:

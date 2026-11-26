@@ -2,7 +2,7 @@
 
 ## Now
 - Bootstrap: PARTIAL (2 items; see docs/state/bootstrap.md)
-- Active slice: S04 (not started). S03 is `[~]` on slice/S03-gateway, NOT merged; branch S04 from it
+- Active slice: S04 (in progress). S03 is `[~]` on slice/S03-gateway, NOT merged; branch S04 from it
 - Phase: B
 - Branch: slice/S03-gateway. WARNING: check `git branch --show-current` before every commit (unexplained checkouts seen twice)
 

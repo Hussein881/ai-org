@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# ExecStart of aiorg-worker.service. S04 replaces this with the durable worker loop.
-# Until then it is a one-shot launcher: `touch var/smoke-requested` then
-# `sudo -n systemctl start aiorg-worker.service` runs the credentialed API-provider smoke
-# (systemd injects the provider keys; CLI providers are tested separately by gateway-host.sh).
+# ExecStart of aiorg-worker.service: the durable worker (systemd injects the provider keys).
+# `touch var/smoke-requested` then restarting the unit runs the credentialed API-provider smoke
+# first. The exit code reaches systemd: Restart=on-failure restarts anything but a clean stop.
+set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ -f var/smoke-requested ]]; then
   rm -f var/smoke-requested
   echo "$(date -u +%FT%TZ) aiorg-worker: gateway smoke (api providers)"
-  exec scripts/gateway-host.sh smoke --api-only
+  scripts/gateway-host.sh smoke --api-only || echo "$(date -u +%FT%TZ) aiorg-worker: smoke failed"
 fi
-echo "$(date -u +%FT%TZ) aiorg-worker: nothing to do (durable worker arrives in S04)"
+. scripts/host-env.sh
+export AIORG_GATEWAY_MODE=live
+export AIORG_CEO_LIVE_REPLY="${AIORG_CEO_LIVE_REPLY:-true}"
+export PYTHONUNBUFFERED=1
+echo "$(date -u +%FT%TZ) aiorg-worker: starting durable worker"
+exec .venv/bin/python -m app.workers.host

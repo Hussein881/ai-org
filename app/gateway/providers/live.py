@@ -168,6 +168,8 @@ class _Http:
         try:
             with httpx.Client(transport=self.transport, timeout=req.timeout_s) as c:
                 r = c.post(url, headers=headers, json=body)
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            raise ProviderError("network", not_sent=True) from None
         except httpx.HTTPError:
             raise ProviderError("network") from None
         if r.status_code == 429:

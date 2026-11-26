@@ -7,6 +7,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
+from app.gateway.procs import REGISTRY
 from app.gateway.redact import SECRET_NAME_RE
 from app.gateway.types import ProviderError
 
@@ -14,6 +15,7 @@ ENV_ALLOW = ("HOME", "PATH", "USER", "LOGNAME", "LANG", "TERM", "XDG_RUNTIME_DIR
 _DEFAULTS = {"USER": "aiorg", "LOGNAME": "aiorg", "LANG": "C.UTF-8", "TERM": "dumb"}
 _SAFE_VALUE = re.compile(r"^[\w./:@+\-]{0,512}$")
 _MAX_OUTPUT = 5_000_000
+TIMEOUT_KILL_GRACE_S = 5.0
 
 
 def scrubbed_env() -> dict[str, str]:
@@ -40,22 +42,32 @@ def run_cli(argv: Sequence[str], stdin: str, timeout_s: float) -> tuple[int, str
     env = scrubbed_env()
     with tempfile.TemporaryDirectory(prefix="aiorg-cli-") as cwd:
         try:
-            proc = subprocess.run(  # noqa: S603
+            proc = REGISTRY.spawn(
                 list(argv),
-                input=stdin,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout_s,
                 env=env,
                 cwd=cwd,
                 shell=False,
-                check=False,
             )
-        except subprocess.TimeoutExpired:
-            raise ProviderError("timeout") from None
         except FileNotFoundError:
             raise ProviderError("binary_missing") from None
-    return proc.returncode, proc.stdout[:_MAX_OUTPUT], proc.stderr[:_MAX_OUTPUT]
+        try:
+            out, err = proc.communicate(stdin, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            REGISTRY.terminate([proc], TIMEOUT_KILL_GRACE_S).join()
+            proc.communicate()
+            REGISTRY.forget(proc)
+            raise ProviderError("timeout") from None
+        except BaseException:
+            REGISTRY.terminate([proc], 0).join()
+            REGISTRY.forget(proc)
+            raise
+        if REGISTRY.forget(proc):
+            raise ProviderError("killed")
+    return proc.returncode, out[:_MAX_OUTPUT], err[:_MAX_OUTPUT]
 
 
 def env_is_clean() -> bool:
