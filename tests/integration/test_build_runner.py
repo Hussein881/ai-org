@@ -3,9 +3,26 @@
 import json
 import os
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
-RUNNER = Path(__file__).resolve().parents[2] / "scripts" / "build-runner.sh"
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+RUNNER = ROOT / "scripts" / "build-runner.sh"
+
+
+def _git(repo: Path, *args: str) -> str:
+    cmd = ["git", "-C", str(repo), *args]
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout  # noqa: S603
+
+
+@pytest.fixture(autouse=True)
+def real_checkout_is_never_touched() -> Iterator[None]:
+    """The runner checks out slice branches. It must only ever do that in a throwaway repo."""
+    before = _git(ROOT, "rev-parse", "--abbrev-ref", "HEAD")
+    yield
+    assert _git(ROOT, "rev-parse", "--abbrev-ref", "HEAD") == before
 
 
 class Env:
@@ -24,6 +41,8 @@ class Env:
             f"touch {self.marker}\n" + fake_body
         )
         self.fake.chmod(0o755)
+        self.repo = tmp / "repo"
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)  # noqa: S603, S607
 
     def run(self, **extra: str) -> subprocess.CompletedProcess[str]:
         env = {k: v for k, v in os.environ.items() if not k.endswith(("_API_KEY", "_TOKEN"))}
@@ -34,8 +53,10 @@ class Env:
             CLAUDE_CMD=str(self.fake),
             NOTIFY_LOG_ONLY="1",
             PROBE_SECS="1",
-            **extra,
+            REPO_DIR=str(self.repo),
+            ENV_CHECK=str(ROOT / "scripts" / "check-env-clean.sh"),
         )
+        env.update(extra)
         return subprocess.run(  # noqa: S603
             ["bash", str(RUNNER)],  # noqa: S607
             env=env,
